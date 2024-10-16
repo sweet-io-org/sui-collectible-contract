@@ -13,7 +13,6 @@ module collectible::moment {
         date: String,            // date of the game
         play: String,            // type of play e.g. goal
         play_of_game: String,    // play of the game e.g. 1 of 3
-        game_difficulty: String, // game difficulty e.g. easy
         game_clock: String,      // game clock e.g. 72:23
         audio_type: String,      // audio type
         video: url::Url,         // primary media
@@ -26,7 +25,6 @@ module collectible::moment {
             date: vector<u8>,
             play: vector<u8>,
             play_of_game: vector<u8>,
-            game_difficulty: vector<u8>,
             game_clock: vector<u8>,
             audio_type: vector<u8>,
             video: vector<u8>,
@@ -38,7 +36,6 @@ module collectible::moment {
             date: utf8(date),
             play: utf8(play),
             play_of_game: utf8(play_of_game),
-            game_difficulty: utf8(game_difficulty),
             game_clock: utf8(game_clock),
             audio_type: utf8(audio_type),
             video: url::new_unsafe_from_bytes(video),
@@ -72,10 +69,6 @@ module collectible::moment {
         self.game_clock
     }
 
-    public fun game_difficulty(self: &Moment): String {
-        self.game_difficulty
-    }
-
     public fun audio_type(self: &Moment): String {
         self.audio_type
     }
@@ -97,7 +90,6 @@ module collectible::moment {
         self.audio_type = new_moment.audio_type;
         self.date = new_moment.date;
         self.game_clock = new_moment.game_clock;
-        self.game_difficulty = new_moment.game_difficulty;
         self.play = new_moment.play;
         self.play_of_game = new_moment.play_of_game;
         self.player = new_moment.player;
@@ -139,13 +131,6 @@ module collectible::moment {
         new_play_of_game: vector<u8>,
     ) {
         self.play_of_game = utf8(new_play_of_game);
-    }
-
-    public fun update_game_difficulty(
-        self: &mut Moment,
-        new_game_difficulty: vector<u8>,
-    ) {
-        self.game_difficulty = utf8(new_game_difficulty);
     }
 
     public fun update_game_clock(

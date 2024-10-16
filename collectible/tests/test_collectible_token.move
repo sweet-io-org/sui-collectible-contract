@@ -556,7 +556,6 @@ module collectible::test_token {
         let date = b"My Date";
         let play = b"My Play";
         let play_of_game = b"My play of game";
-        let game_difficulty = b"My Difficulty";
         let game_clock = b"My Game Clock";
         let audio_type = b"My Audio Type";
         let video = b"My video URI";
@@ -581,7 +580,6 @@ module collectible::test_token {
             date,
             play,
             play_of_game,
-            game_difficulty,
             game_clock,
             audio_type,
             video,
@@ -601,7 +599,6 @@ module collectible::test_token {
         assert!(token.moment().date() == utf8(date));
         assert!(token.moment().play() == utf8(play));
         assert!(token.moment().play_of_game() == utf8(play_of_game));
-        assert!(token.moment().game_difficulty() == utf8(game_difficulty));
         assert!(token.moment().game_clock() == utf8(game_clock));
         assert!(token.moment().audio_type() == utf8(audio_type));
         assert!(token.moment().video() == utf8(video));

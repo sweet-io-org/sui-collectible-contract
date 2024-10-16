@@ -1,72 +1,5 @@
 // Copyright (C) 2024 SocialSweet Inc.  All rights reserved.
 
-#[test_only]
-module collectible::fixed_royalty_rule {
-
-    use sui::coin;
-    use sui::sui;
-    use sui::transfer_policy;
-
-    /// The `amount_bp` passed is more than 100%.
-    const EIncorrectArgument: u64 = 0;
-    /// The `Coin` used for payment is not enough to cover the fee.
-    const EInsufficientAmount: u64 = 1;
-
-    /// Max value for the `amount_bp`.
-    const MAX_BPS: u16 = 10_000;
-
-    /// The Rule Witness to authorize the policy
-    public struct Rule has drop {}
-
-    /// Configuration for the Rule
-    public struct Config has store, drop {
-        /// Percentage of the transfer amount to be paid as royalty fee
-        amount_bp: u16,
-        /// This is used as royalty fee if the calculated fee is smaller than `min_amount`
-        min_amount: u64,
-    }
-
-    /// Function that adds a Rule to the `TransferPolicy`.
-    /// Requires `TransferPolicyCap` to make sure the rules are
-    /// added only by the publisher of T.
-    public fun add<T>(
-        policy: &mut transfer_policy::TransferPolicy<T>,
-        cap: &transfer_policy::TransferPolicyCap<T>,
-        amount_bp: u16,
-        min_amount: u64
-
-    ) {
-        assert!(amount_bp <= MAX_BPS, EIncorrectArgument);
-        transfer_policy::add_rule(Rule {}, policy, cap, Config { amount_bp, min_amount })
-    }
-
-    /// Buyer action: Pay the royalty fee for the transfer.
-    public fun pay<T: key + store>(
-        policy: &mut transfer_policy::TransferPolicy<T>,
-        request: &mut transfer_policy::TransferRequest<T>,
-        payment: coin::Coin<sui::SUI>
-    ) {
-        let paid = transfer_policy::paid(request);
-        let amount = fee_amount(policy, paid);
-
-        assert!(coin::value(&payment) == amount, EInsufficientAmount);
-
-        transfer_policy::add_to_balance(Rule {}, policy, payment);
-        transfer_policy::add_receipt(Rule {}, request)
-    }
-
-    /// Helper function to calculate the amount to be paid for the transfer.
-    /// Can be used with --dry-run to estimate the fee amount based on the Kiosk listing price.
-    public fun fee_amount<T: key + store>(policy: &transfer_policy::TransferPolicy<T>, paid: u64): u64 {
-        let config: &Config = transfer_policy::get_rule(Rule {}, policy);
-        let mut amount = (((paid as u128) * (config.amount_bp as u128) / 100) as u64);
-        // If the amount is less than the minimum, use the minimum
-        if (amount < config.min_amount) {
-            amount = config.min_amount
-        };
-        amount
-    }
-}
 
 #[test_only]
 module collectible::test_transfer_policy {
@@ -80,7 +13,7 @@ module collectible::test_transfer_policy {
     use sui::test_scenario;
     use sui::transfer_policy;
     use sui::kiosk;
-    use collectible::fixed_royalty_rule;
+    use collectible::royalty_rule;
     use collectible::token;
     use collectible::test_common::{
         admin_publish_contract,
@@ -109,15 +42,13 @@ module collectible::test_transfer_policy {
         // As publisher, we register our transfer policy
         scenario.next_tx(admin_addr);
         {
-            let publisher = scenario.take_from_sender<package::Publisher>();
-            let (mut transfer_policy, transfer_policy_cap) = transfer_policy::new<token::Token>(&publisher, scenario.ctx());
+            let transfer_policy_cap = scenario.take_from_sender<transfer_policy::TransferPolicyCap<token::Token>>();
+            let mut transfer_policy = scenario.take_shared<transfer_policy::TransferPolicy<token::Token>>();
             // We then add one or more rules to the transfer policy
-            fixed_royalty_rule::add(&mut transfer_policy, &transfer_policy_cap, 10, 100);
+            royalty_rule::add(&mut transfer_policy, &transfer_policy_cap, 500);
             debug::print(&utf8(b"Publisher creates transfer policy rules for token"));
-            // Make transfer policy public, and return cap to us
-            transfer::public_share_object(transfer_policy);
-            transfer::public_transfer(transfer_policy_cap, scenario.ctx().sender());
-            scenario.return_to_sender(publisher);
+            scenario.return_to_sender(transfer_policy_cap);
+            test_scenario::return_shared(transfer_policy);
         };
         // A kiosk marketplace is created by a 3rd party
         let kiosk_commission = 5; // 5% commission for kiosk owner
@@ -179,7 +110,7 @@ module collectible::test_transfer_policy {
                     utf8(b": "),
                     rules[i - 1].into_string().to_string(),
                     utf8(b" -- "),
-                    type_name::get<fixed_royalty_rule::Rule>().into_string().to_string(),
+                    type_name::get<royalty_rule::Rule>().into_string().to_string(),
 
                 ]);
                 debug::print(&dbg_msg);
@@ -204,7 +135,7 @@ module collectible::test_transfer_policy {
             debug::print(&dbg_msg);
             let (token, mut transfer_request) = kiosk.purchase<token::Token>(kiosk_token_id, payment_from_user);
             // User pays all of the royalties from their gas budget
-            let royalty_amount = fixed_royalty_rule::fee_amount(&transfer_policy, kiosk_asking_price);
+            let royalty_amount = royalty_rule::fee_amount(&transfer_policy, kiosk_asking_price);
             let royalty_payment_from_user = coin::split(&mut gas_budget, royalty_amount, scenario.ctx());
             dbg_msg = build_string(&mut vector[
                 utf8(b"User pays royalty of "),
@@ -212,7 +143,7 @@ module collectible::test_transfer_policy {
                 utf8(b" MIST for token"),
             ]);
             debug::print(&dbg_msg);
-            fixed_royalty_rule::pay(
+            royalty_rule::pay(
                 &mut transfer_policy, &mut transfer_request, royalty_payment_from_user
             );
             // User must then verify with the transfer_policy module  that all of the rules were correctly followed in order to complete the transaction

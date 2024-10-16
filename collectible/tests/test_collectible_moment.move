@@ -29,8 +29,6 @@ module collectible::test_moment {
         assert!(moment_data.date() != alt_moment_data.date());
         assert!(moment_data.play() != alt_moment_data.play());
         assert!(moment_data.play_of_game() != alt_moment_data.play_of_game());
-        assert!(moment_data.game_difficulty() != alt_moment_data.game_difficulty());
-        assert!(moment_data.game_difficulty() != alt_moment_data.game_difficulty());
         assert!(moment_data.video() != alt_moment_data.video());
         assert!(moment_data.total_editions() != alt_moment_data.total_editions());
         // update moment to match
@@ -41,8 +39,6 @@ module collectible::test_moment {
         assert!(moment_data.date() == alt_moment_data.date());
         assert!(moment_data.play() == alt_moment_data.play());
         assert!(moment_data.play_of_game() == alt_moment_data.play_of_game());
-        assert!(moment_data.game_difficulty() == alt_moment_data.game_difficulty());
-        assert!(moment_data.game_difficulty() == alt_moment_data.game_difficulty());
         assert!(moment_data.video() == alt_moment_data.video());
         assert!(moment_data.total_editions() == alt_moment_data.total_editions());
         // Finally verify the whole now matches
@@ -64,7 +60,6 @@ module collectible::test_moment {
         assert!(moment_data.date() != alt_moment_data.date());
         assert!(moment_data.play() != alt_moment_data.play());
         assert!(moment_data.play_of_game() != alt_moment_data.play_of_game());
-        assert!(moment_data.game_difficulty() != alt_moment_data.game_difficulty());
         assert!(moment_data.game_clock() != alt_moment_data.game_clock());
         assert!(moment_data.audio_type() != alt_moment_data.audio_type());
         assert!(moment_data.video() != alt_moment_data.video());
@@ -84,9 +79,6 @@ module collectible::test_moment {
         // Update play of game to match alt
         moment_data.update_play_of_game(*alt_moment_data.play_of_game().bytes());
         assert!(moment_data.play_of_game() == alt_moment_data.play_of_game());
-        // Update game difficulty to match alt
-        moment_data.update_game_difficulty(*alt_moment_data.game_difficulty().bytes());
-        assert!(moment_data.game_difficulty() == alt_moment_data.game_difficulty());
         // Update game clock to match alt
         moment_data.update_game_clock(*alt_moment_data.game_clock().bytes());
         assert!(moment_data.game_clock() == alt_moment_data.game_clock());
@@ -113,7 +105,6 @@ module collectible::test_moment {
         debug_strs.push_back(build_string(&mut vector[utf8(b" -- Date: "), moment.date()]));
         debug_strs.push_back(build_string(&mut vector[utf8(b" -- Play: "), moment.play()]));
         debug_strs.push_back(build_string(&mut vector[utf8(b" -- Play of Game: "), moment.play_of_game()]));
-        debug_strs.push_back(build_string(&mut vector[utf8(b" -- Game Difficulty: "), moment.game_difficulty()]));
         debug_strs.push_back(build_string(&mut vector[utf8(b" -- Game Clock: "), moment.game_clock()]));
         debug_strs.push_back(build_string(&mut vector[utf8(b" -- Audio Type: "), moment.audio_type()]));
         debug_strs.push_back(build_string(&mut vector[utf8(b" -- Video URI: "), moment.video()]));

@@ -57,7 +57,10 @@ module collectible::token {
         let display = sui::display::new_with_fields<Token>(
             &publisher, fields, values, ctx
         );
+        let (txf_obj, txf_cap) = 0x2::transfer_policy::new<Token>(&publisher,ctx);
         // Transfer ownership
+        transfer::public_share_object(txf_obj);
+        transfer::public_transfer(txf_cap, tx_context::sender(ctx));
         transfer::public_transfer(publisher, tx_context::sender(ctx));
         transfer::public_transfer(display, tx_context::sender(ctx));
     }
@@ -80,7 +83,6 @@ module collectible::token {
         date: vector<u8>,
         play: vector<u8>,
         play_of_game: vector<u8>,
-        game_difficulty: vector<u8>,
         game_clock: vector<u8>,
         audio_type: vector<u8>,
         video: vector<u8>,
@@ -98,7 +100,6 @@ module collectible::token {
             date,
             play,
             play_of_game,
-            game_difficulty,
             game_clock,
             audio_type,
             video,

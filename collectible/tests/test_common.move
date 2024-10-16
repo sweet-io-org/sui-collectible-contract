@@ -10,6 +10,8 @@ module collectible::test_common {
     use sui::display;
     use sui::package;
     use sui::test_scenario;
+    use sui::transfer_policy;
+    
     use collectible::caps;
     use collectible::moment;
     use collectible::register;
@@ -47,7 +49,6 @@ module collectible::test_common {
             b"My Date",
             b"My Play",
             b"My Play Type",
-            b"My Game Difficulty",
             b"My Game Clock",
             b"My Audio Type",
             b"My Video",
@@ -61,7 +62,6 @@ module collectible::test_common {
             b"Alt Date",
             b"Alt Play",
             b"Alt Play Type",
-            b"Alt Game Difficulty",
             b"Alt Game Clock",
             b"Alt Audio Type",
             b"Alt Video",
@@ -76,10 +76,9 @@ module collectible::test_common {
             moment_data[2], // Date
             moment_data[3], // Play
             moment_data[4], // Type of Play
-            moment_data[5], // Game Difficulty
-            moment_data[6], // Game Clock
-            moment_data[7], // Audio Type
-            moment_data[8], // Video / primary media
+            moment_data[5], // Game Clock
+            moment_data[6], // Audio Type
+            moment_data[7], // Video / primary media
             64,
         )
     }
@@ -92,10 +91,9 @@ module collectible::test_common {
             moment_data[2], // Date
             moment_data[3], // Play
             moment_data[4], // Type of Play
-            moment_data[5], // Game Difficulty
-            moment_data[6], // Game Clock
-            moment_data[7], // Audio Type
-            moment_data[8], // Video / primary media
+            moment_data[5], // Game Clock
+            moment_data[6], // Audio Type
+            moment_data[7], // Video / primary media
             100,
         )
     }
@@ -127,7 +125,7 @@ module collectible::test_common {
             token::test_init(scenario.ctx());
         };
         // Expect 5 created objects, and 1 emit for contract deployment
-        check_last_receipt(scenario, 5, 0, 0, 1);
+        check_last_receipt(scenario, 7, 0, 0, 2);
     }
 
     public fun admin_transfer_admin_caps(scenario: &mut test_scenario::Scenario,
@@ -137,6 +135,7 @@ module collectible::test_common {
             let admin = scenario.take_from_sender<caps::AdminCap>();
             let publisher = scenario.take_from_sender<sui::package::Publisher>();
             let upgrade_cap = scenario.take_from_sender<sui::package::UpgradeCap>();
+            let txf_policy_cap = scenario.take_from_sender<transfer_policy::TransferPolicyCap<token::Token>>();
             let display = scenario.take_from_sender<display::Display<token::Token>>();
             let dbg_string = build_string(&mut vector[
                 utf8(b"Transferring caps to '"),
@@ -148,6 +147,7 @@ module collectible::test_common {
             transfer::public_transfer(upgrade_cap, new_admin_addr);
             transfer::public_transfer(publisher, new_admin_addr);
             transfer::public_transfer(display, new_admin_addr);
+            transfer::public_transfer(txf_policy_cap, new_admin_addr);
         };
         check_last_receipt(scenario, 0, 0, 0, 0);
     }
