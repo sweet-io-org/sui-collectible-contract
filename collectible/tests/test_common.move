@@ -14,8 +14,8 @@ module collectible::test_common {
     
     use collectible::caps;
     use collectible::moment;
-    use collectible::register;
     use collectible::token;
+    use collectible::uniqueidset;
 
     const ZERO: u8 = 48;
 
@@ -121,11 +121,22 @@ module collectible::test_common {
             transfer::public_transfer(upgrade_cap, admin_addr);
             // Perform all of the private init functions
             caps::test_init(scenario.ctx());
-            register::test_init(scenario.ctx());
             token::test_init(scenario.ctx());
         };
-        // Expect 5 created objects, and 1 emit for contract deployment
-        check_last_receipt(scenario, 7, 0, 0, 2);
+        // Expect 8 created objects, and 1 emit for contract deployment
+        check_last_receipt(scenario, 8, 0, 0, 2);
+        scenario.next_tx(admin_addr);
+        {
+            let mut unique_id_set = scenario.take_from_sender<uniqueidset::UniqueIdSet>();
+            unique_id_set.insert(1000);
+            scenario.return_to_sender(unique_id_set);
+        };
+        scenario.next_tx(admin_addr);
+        {
+            let mut unique_id_set = scenario.take_from_sender<uniqueidset::UniqueIdSet>();
+            assert!(unique_id_set.contains(1000));
+            scenario.return_to_sender(unique_id_set);
+        };
     }
 
     public fun admin_transfer_admin_caps(scenario: &mut test_scenario::Scenario,
@@ -152,55 +163,16 @@ module collectible::test_common {
         check_last_receipt(scenario, 0, 0, 0, 0);
     }
 
-    public fun admin_register_new_minter(scenario: &mut test_scenario::Scenario, admin_addr: address, minter_addr: address) {
-        scenario.next_tx(admin_addr);
+    public fun transfer_minter_cap(scenario: &mut test_scenario::Scenario,
+        from_addr: address, to_addr: address) {
+        scenario.next_tx(from_addr);
         {
-            let mut admin = scenario.take_from_sender<caps::AdminCap>();
-            let mut register = scenario.take_shared<register::Register>();
-            let dbg_string = build_string(&mut vector[
-                utf8(b"Adding minter '"),
-                minter_addr.to_string(),
-                utf8(b"'"),
-            ]);
-            debug::print(&dbg_string);
-            register.add_minter_whitelist(minter_addr, &mut admin, scenario.ctx());
-            test_scenario::return_shared(register);
-            scenario.return_to_sender(admin);
+            let minter = scenario.take_from_sender<caps::MinterCap>();
+            transfer::public_transfer(minter, to_addr);
         };
         check_last_receipt(scenario, 0, 0, 0, 0);
     }
-
-    public fun admin_revoke_minter_access(scenario: &mut test_scenario::Scenario, admin_addr: address, minter_addr: address) {
-        scenario.next_tx(admin_addr);
-        {
-            let mut admin = scenario.take_from_sender<caps::AdminCap>();
-            let mut register = scenario.take_shared<register::Register>();
-            let dbg_string = build_string(&mut vector[
-                utf8(b"Revoking minter '"),
-                minter_addr.to_string(),
-                utf8(b"'"),
-            ]);
-            debug::print(&dbg_string);
-            register.remove_minter_whitelist(minter_addr, &mut admin, scenario.ctx());
-            test_scenario::return_shared(register);
-            scenario.return_to_sender(admin);
-        };
-        check_last_receipt(scenario, 0, 0, 0, 0);
-    }
-
-
-    public fun admin_freeze_contract(scenario: &mut test_scenario::Scenario, admin_addr: address) {
-        scenario.next_tx(admin_addr);
-        {
-            let mut register = scenario.take_shared<register::Register>();
-            debug::print(&utf8(b"Freezing contract!"));
-            register.freeze_contract(scenario.ctx());
-            assert!(register.is_contract_frozen());
-            test_scenario::return_shared(register);
-        };
-        check_last_receipt(scenario, 0, 0, 0, 0);
-    }
-
+        
 
     public fun admin_has_admin_cap_access(scenario: &mut test_scenario::Scenario, admin_addr: address) {
         scenario.next_tx(admin_addr);
@@ -217,84 +189,29 @@ module collectible::test_common {
         !admin_ids.is_empty()
     }
 
-    public fun admin_has_full_register_access(scenario: &mut test_scenario::Scenario, admin_addr: address) {
+    public fun admin_has_minter_cap_access(scenario: &mut test_scenario::Scenario, admin_addr: address) {
         scenario.next_tx(admin_addr);
         {
-            let mut register = scenario.take_shared<register::Register>();
-            // Capture current frozen state
-            let original_frozen_state = register.is_contract_frozen();
-            register.set_frozen_state_for_testing(false);
-            // Freeze to prove we have rights to do so
-            register.freeze_contract(scenario.ctx());
-            assert!(register.is_contract_frozen());
-            // Revert to previous state
-            register.set_frozen_state_for_testing(original_frozen_state);
-            // Check we have mint privileges
-            register.check_minter(scenario.ctx());
-            // If we have admin_cap, then validate all of the admin only functions
-            if (has_admin_cap(scenario)) {
-                let mut admin = scenario.take_from_sender<caps::AdminCap>();
-                let test_minter = @0xDEAD_BEEF; // Random address
-                // Check our random minter is not already valid
-                let mut whitelist = register.whitelist(&mut admin, scenario.ctx());
-                assert!(!whitelist.contains(&test_minter));
-                // Add a dummy minter and verify
-                register.add_minter_whitelist(test_minter, &mut admin, scenario.ctx());
-                whitelist = register.whitelist(&mut admin, scenario.ctx());
-                assert!(whitelist.contains(&test_minter));
-                // remove our dummy minter and verify
-                register.remove_minter_whitelist(test_minter, &mut admin, scenario.ctx());
-                whitelist = register.whitelist(&mut admin, scenario.ctx());
-                assert!(!whitelist.contains(&test_minter));
-                // clean up
-                scenario.return_to_sender(admin);
-            };
-            // Clean up
-            test_scenario::return_shared(register);
+            let minter = scenario.take_from_sender<caps::MinterCap>();
+            // No-op, just to confirm we have access
+            scenario.return_to_sender(minter);
         };
         check_last_receipt(scenario, 0, 0, 0, 0);
     }
 
-    public fun admin_can_mint(scenario: &mut test_scenario::Scenario, admin_addr: address): bool {
-        let result;
-        scenario.next_tx(admin_addr);
-        {
-            let mut register = scenario.take_shared<register::Register>();
-            // Check we have mint privileges
-            result = register.is_minter_valid_for_testing(scenario.ctx());
-            // Clean up
-            test_scenario::return_shared(register);
-        };
-        check_last_receipt(scenario, 0, 0, 0, 0);
-        result
+    public fun has_minter_cap(scenario: &mut test_scenario::Scenario): bool {
+        let minter_ids = scenario.ids_for_sender<caps::MinterCap>();
+        !minter_ids.is_empty()
     }
 
     // === Owner Integration Functions ===
 
-    public fun owner_has_limited_register_access(scenario: &mut test_scenario::Scenario, owner_addr: address) {
-        // Verify that anyone can access the register, but do not automatically have mint rights
+    public fun owner_cannot_get_caps(scenario: &mut test_scenario::Scenario, owner_addr: address) {
         scenario.next_tx(owner_addr);
         {
-            let mut register = scenario.take_shared<register::Register>();
-            assert!(!register.is_minter_valid_for_testing(scenario.ctx()));
-            // Capture current frozen state
-            let original_frozen_state = register.is_contract_frozen();
-            register.set_frozen_state_for_testing(false);
-            // Confirm that we can check frozen status (when contract is not frozen)
-            register.check_frozen(scenario.ctx());
-            // Revert to the previous state
-            register.set_frozen_state_for_testing(original_frozen_state);
-            // Clean up
-            test_scenario::return_shared(register);
-        };
-        check_last_receipt(scenario, 0, 0, 0, 0);
-    }
-
-    public fun owner_cannot_get_admin_cap(scenario: &mut test_scenario::Scenario, owner_addr: address) {
-        scenario.next_tx(owner_addr);
-        {
-            // Confirm that the owner does not have admin cap
+            // Confirm that the owner does not have admin cap or minter cap
             assert!(!has_admin_cap(scenario));
+            assert!(!has_minter_cap(scenario));
         };
         check_last_receipt(scenario, 0, 0, 0, 0);
     }
@@ -365,8 +282,9 @@ module collectible::test_common {
     {
         // Get last transaction receipt and set the invalidate the address
         let last_receipt = scenario.next_tx(@0x0);
-        assert!(last_receipt.created().length() == nr_created);
+        debug::print(&last_receipt.deleted().length());
         assert!(last_receipt.deleted().length() == nr_deleted);
+        assert!(last_receipt.created().length() == nr_created);
         assert!(last_receipt.frozen().length() == nr_frozen);
         assert!(last_receipt.num_user_events() == nr_user_events);
         last_receipt

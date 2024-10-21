@@ -8,25 +8,23 @@ module collectible::test_token {
     use sui::display;
     use sui::test_scenario;
     use collectible::moment;
-    use collectible::register;
     use collectible::token;
     use collectible::test_common::{
         admin_burn_publisher,
         admin_create_new_display_template,
         admin_custom_display_template,
-        admin_freeze_contract,
         admin_publish_contract,
-        admin_register_new_minter,
-        admin_revoke_minter_access,
         admin_transfer_admin_caps,
         build_string,
         check_last_receipt,
         get_alt_moment_data,
         get_alt_token_data,
         get_new_alt_moment,
+        transfer_minter_cap,
         itos,
         owner_transfer_token,
     };
+    use collectible::caps;
 
     // Integration tests
 
@@ -45,13 +43,13 @@ module collectible::test_token {
         admin_update_display_template(&mut scenario, admin_addr,
             b"My Project Url2",
             b"New Series2", b"New Set2", b"New Rarity2");
-        owner_transfer_token<token::Token>(&mut scenario, user1, minter_addr);
-        admin_update_token(&mut scenario, minter_addr,
+        owner_transfer_token<token::Token>(&mut scenario, user1, admin_addr);
+        admin_update_token(&mut scenario, admin_addr,
             b"New name", b"New Description2",
             b"New PreviewImage2", 2);
         let alt_moment = get_new_alt_moment();
-        admin_update_moment(&mut scenario, minter_addr, &alt_moment);
-        admin_burn_token(&mut scenario, minter_addr);
+        admin_update_moment(&mut scenario, admin_addr, &alt_moment);
+        admin_burn_token(&mut scenario, admin_addr);
         scenario.end();
     }
 
@@ -69,135 +67,18 @@ module collectible::test_token {
         scenario.end();
     }
 
-    #[test]
-    fun test_new_minter_flow() {
-        let admin_addr = @0xAAAA;
-        let minter1_addr = @0xBBBB;
-        let minter2_addr = @0xCCCC;
-        let user1 = @0xDDDD;
-        let user2 = @0xEEEE;
-        let mut scenario = test_scenario::begin(@0x0);
-        // Verify that admin can create a new minter
-        admin_publish_contract(&mut scenario, minter1_addr);
-        admin_transfer_admin_caps(&mut scenario, minter1_addr, admin_addr);
-        admin_register_new_minter(&mut scenario, admin_addr, minter2_addr);
-        // Verify minter can mint a couple of tokens to user1
-        admin_mint_token(&mut scenario, 1, minter2_addr, user1);
-        admin_mint_token(&mut scenario, 2, minter2_addr, user2);
-        // As one of the minters, freeze the contract
-        admin_freeze_contract(&mut scenario, minter1_addr);
-        // Verify that the users can transfer tokens back to a minter
-        owner_transfer_token<token::Token>(&mut scenario, user1, minter1_addr);
-        owner_transfer_token<token::Token>(&mut scenario, user2, minter1_addr);
-        // Verify that the minter can burn both of the tokens (when ownership returned)
-        admin_burn_token(&mut scenario, minter1_addr);
-        admin_burn_token(&mut scenario, minter1_addr);
-        scenario.end();
-    }
 
     #[test]
-    fun test_admin_minter_flow() {
-        let admin_addr = @0xAAAA;
-        let minter_addr = @0xBBBB;
-        let user1 = @0xCCCC;
-        let user2 = @0xDDDD;
-        // Admin publishes the contract and mints 2 tokens
-        let mut scenario = test_scenario::begin(@0x0);
-        admin_publish_contract(&mut scenario, minter_addr);
-        admin_transfer_admin_caps(&mut scenario, minter_addr, admin_addr);
-        admin_mint_token(&mut scenario, 1, minter_addr, user1);
-        admin_mint_token(&mut scenario, 2, minter_addr, user2);
-        // Freeze the contract as minter
-        admin_freeze_contract(&mut scenario, minter_addr);
-        // Users can still transfer the token back to admin
-        owner_transfer_token<token::Token>(&mut scenario, user1, minter_addr);
-        owner_transfer_token<token::Token>(&mut scenario, user2, minter_addr);
-        // Admin can burn both of the tokens (when ownership returned)
-        admin_burn_token(&mut scenario, minter_addr);
-        admin_burn_token(&mut scenario, minter_addr);
-        // Clean up
-        scenario.end();
-    }
-
-    #[test]
-    fun test_multi_minter_flow() {
-        let admin_addr = @0xAAAA;
-        let minter_addr = @0xBBBB;
-        let minter1_addr = @0xCCCC;
-        let minter2_addr = @0xDDDD;
-        let user1 = @0x1111;
-        let user2 = @0x2222;
-        let user3 = @0x3333;
-        let mut scenario = test_scenario::begin(@0x00);
-        // Admin publishes the contract and create two minters
-        admin_publish_contract(&mut scenario, minter_addr);
-        admin_transfer_admin_caps(&mut scenario, minter_addr, admin_addr);
-        admin_register_new_minter(&mut scenario, admin_addr, minter1_addr);
-        admin_register_new_minter(&mut scenario, admin_addr, minter2_addr);
-        // Check all minters can mint tokens
-        admin_mint_token(&mut scenario, 1, minter_addr, user1);
-        admin_mint_token(&mut scenario, 2, minter1_addr, user2);
-        admin_mint_token(&mut scenario, 3, minter2_addr, user3);
-        // As admin, freeze the contract as one of the minters
-        admin_freeze_contract(&mut scenario, minter2_addr);
-        // Check owners can still access their tokens
-        owner_transfer_token<token::Token>(&mut scenario, user1, minter_addr);
-        owner_transfer_token<token::Token>(&mut scenario, user2, minter1_addr);
-        owner_transfer_token<token::Token>(&mut scenario, user3, minter2_addr);
-        // Check all minters can burn tokens
-        admin_burn_token(&mut scenario, minter_addr);
-        admin_burn_token(&mut scenario, minter1_addr);
-        admin_burn_token(&mut scenario, minter2_addr);
-        // clean up
-        scenario.end();
-    }
-
-    #[test]
-    #[expected_failure(abort_code = register::ENotAuthorized)]
-    fun test_admin_cap_cannot_mint() {
+    #[expected_failure(abort_code = 3)]
+    fun test_minter_cap_required_to_mint() {
         let admin_addr = @0xAAAA;
         let minter_addr = @0xBBBB;
         let user1 = @0xCCCC;
         let mut scenario = test_scenario::begin(@0x00);
         admin_publish_contract(&mut scenario, minter_addr);
-        admin_transfer_admin_caps(&mut scenario, minter_addr, admin_addr);
+        transfer_minter_cap(&mut scenario, admin_addr, minter_addr);
         // Check minting fails with only admin_cap
         admin_mint_token(&mut scenario, 1, admin_addr, user1);
-        // clean up
-        scenario.end();
-    }
-
-    #[test]
-    #[expected_failure(abort_code = register::ENotAuthorized)]
-    fun test_compromised_minter_flow() {
-        let admin_addr = @0xAAAA;
-        let minter_addr = @0xBBBB;
-        let user1 = @0xCCCC;
-        let mut scenario = test_scenario::begin(@0x00);
-        admin_publish_contract(&mut scenario, minter_addr);
-        admin_transfer_admin_caps(&mut scenario, minter_addr, admin_addr);
-        // Check minting works
-        admin_mint_token(&mut scenario, 1, minter_addr, user1);
-        // Revoke access for a compromised minter
-        admin_revoke_minter_access(&mut scenario, admin_addr, minter_addr);
-        // Compromised minter attempts to mint a new token which now fails
-        admin_mint_token(&mut scenario, 2, minter_addr, user1);
-        // clean up
-        scenario.end();
-    }
-
-    // === Unauthorized mint/freeze ===
-
-    #[test]
-    #[expected_failure(abort_code = register::ENotAuthorized)]
-    fun test_unauthorized_minter_blocked() {
-        let admin_addr = @0xAAAA;
-        let user1 = @0xBBBB;
-        let user2 = @0xCCCC;
-        let mut scenario = test_scenario::begin(@0x00);
-        admin_publish_contract(&mut scenario, admin_addr);
-        // As an unauthorized user, attempt to mint a token
-        admin_mint_token(&mut scenario, 1, user1, user2);
         // clean up
         scenario.end();
     }
@@ -212,6 +93,19 @@ module collectible::test_token {
         admin_publish_contract(&mut scenario, minter_addr);
         admin_transfer_admin_caps(&mut scenario, minter_addr, admin_addr);
         admin_mint_token(&mut scenario, 1, minter_addr, minter_addr);
+        // Clean up
+        scenario.end();
+    }
+
+
+    #[test]
+    fun test_update_not_related_to_minter_cap() {
+        let unused_addr = @0xAAAA;
+        let minter_addr = @0xBBBB;
+        let mut scenario = test_scenario::begin(@0x00);
+        admin_publish_contract(&mut scenario, minter_addr);
+        admin_mint_token(&mut scenario, 1, minter_addr, minter_addr);
+        transfer_minter_cap(&mut scenario, minter_addr, unused_addr);
         // Update everything on the token
         let alt_token_data = get_alt_token_data();
         admin_update_name(&mut scenario, minter_addr, alt_token_data[0]);
@@ -224,32 +118,30 @@ module collectible::test_token {
         admin_update_moment(&mut scenario, minter_addr, &alt_moment);
         // As admin, update the display properties
         let alt_moment_data = get_alt_moment_data();
-        admin_update_display_template(&mut scenario, admin_addr,
-            alt_token_data[4], alt_moment_data[0], alt_moment_data[1], alt_moment_data[2],
-        );
         // Clean up
         scenario.end();
     }
 
+
     #[test]
-    fun test_minter_can_update_token() {
+    fun test_admin_can_update_token() {
         let admin_addr = @0xAAAA;
-        let minter_addr = @0xCCCC;
+        let unused_addr = @0xDDDD;
         let mut scenario = test_scenario::begin(@0x00);
         admin_publish_contract(&mut scenario, admin_addr);
         // Give token to the minter
-        admin_mint_token(&mut scenario, 1, admin_addr, minter_addr);
-        // Register minter to grant admin rights
-        admin_register_new_minter(&mut scenario, admin_addr, minter_addr);
-        // Check that the minter can update everything
+        admin_mint_token(&mut scenario, 1, admin_addr, admin_addr);
+        // transfer minter cap away
+        transfer_minter_cap(&mut scenario, admin_addr, unused_addr);
+        // Check that the admin can update everything
         let alt_token_data = get_alt_token_data();
-        admin_update_name(&mut scenario, minter_addr, alt_token_data[0]);
-        admin_update_description(&mut scenario, minter_addr, alt_token_data[1]);
-        admin_update_preview_image(&mut scenario, minter_addr, alt_token_data[2]);
-        admin_update_edition_number(&mut scenario, minter_addr, 2);
+        admin_update_name(&mut scenario, admin_addr, alt_token_data[0]);
+        admin_update_description(&mut scenario, admin_addr, alt_token_data[1]);
+        admin_update_preview_image(&mut scenario, admin_addr, alt_token_data[2]);
+        admin_update_edition_number(&mut scenario, admin_addr, 2);
         // Update the moment data
         let alt_moment = get_new_alt_moment();
-        admin_update_moment(&mut scenario, minter_addr, &alt_moment);
+        admin_update_moment(&mut scenario, admin_addr, &alt_moment);
         // Clean up
         scenario.end();
     }
@@ -257,7 +149,7 @@ module collectible::test_token {
     // === Unauthorized token updates and burns ===
 
     #[test]
-    #[expected_failure(abort_code = register::ENotAuthorized)]
+    #[expected_failure(abort_code = 3)]
     fun test_user_cannot_update_token_name() {
         let admin_addr = @0xAAAA;
         let user1 = @0xCCCC;
@@ -270,7 +162,7 @@ module collectible::test_token {
     }
 
     #[test]
-    #[expected_failure(abort_code = register::ENotAuthorized)]
+    #[expected_failure(abort_code = 3)]
     fun test_user_cannot_update_token_description() {
         let admin_addr = @0xAAAA;
         let user1 = @0xCCCC;
@@ -283,7 +175,7 @@ module collectible::test_token {
     }
 
     #[test]
-    #[expected_failure(abort_code = register::ENotAuthorized)]
+    #[expected_failure(abort_code = 3)]
     fun test_user_cannot_update_token_preview_image() {
         let admin_addr = @0xAAAA;
         let user1 = @0xCCCC;
@@ -296,7 +188,7 @@ module collectible::test_token {
     }
 
     #[test]
-    #[expected_failure(abort_code = register::ENotAuthorized)]
+    #[expected_failure(abort_code = 3)]
     fun test_user_cannot_update_edition_number() {
         let admin_addr = @0xAAAA;
         let user1 = @0xCCCC;
@@ -309,7 +201,7 @@ module collectible::test_token {
     }
 
     #[test]
-    #[expected_failure(abort_code = register::ENotAuthorized)]
+    #[expected_failure(abort_code = 3)]
     fun test_user_cannot_update_moment() {
         let admin_addr = @0xAAAA;
         let user1 = @0xCCCC;
@@ -322,7 +214,7 @@ module collectible::test_token {
     }
 
     #[test]
-    #[expected_failure(abort_code = register::ENotAuthorized)]
+    #[expected_failure(abort_code = 3)]
     fun test_user_cannot_burn_token() {
         let admin_addr = @0xAAAA;
         let user1 = @0xCCCC;
@@ -335,138 +227,46 @@ module collectible::test_token {
         scenario.end();
     }
 
-    // Further frozen contract tests
-
-    #[test]
-    fun test_frozen_and_can_update_display() {
-        let admin_addr = @0xAAAA;
-        let user1 = @0xCCCC;
-        let mut scenario = test_scenario::begin(@0x00);
-        admin_publish_contract(&mut scenario, admin_addr);
-        admin_mint_token(&mut scenario, 1, admin_addr, user1);
-        // Freeze contract
-        admin_freeze_contract(&mut scenario, admin_addr);
-        // Attempt to update the display template
-        admin_update_display_template(&mut scenario, admin_addr, b"My Project Url",
-            b"New Series", b"New Set", b"New Rarity");
-        // clean up
-        scenario.end();
-    }
-
-    #[test]
-    #[expected_failure(abort_code = register::EFrozen)]
-    fun test_frozen_cannot_update_tokens() {
-        let admin_addr = @0xAAAA;
-        let mut scenario = test_scenario::begin(@0x00);
-        admin_publish_contract(&mut scenario, admin_addr);
-        admin_mint_token(&mut scenario, 1, admin_addr, admin_addr);
-        // Freeze contract
-        admin_freeze_contract(&mut scenario, admin_addr);
-        // Admin attempts to update the token
-        admin_update_token(&mut scenario, admin_addr, b"New name", b"New Description",
-            b"New PreviewImage", 2);
-        // clean up
-        scenario.end();
-    }
-
-    #[test]
-    #[expected_failure(abort_code = register::EFrozen)]
-    fun test_frozen_cannot_update_token_name() {
-        let admin_addr = @0xAAAA;
-        let mut scenario = test_scenario::begin(@0x00);
-        admin_publish_contract(&mut scenario, admin_addr);
-        admin_mint_token(&mut scenario, 1, admin_addr, admin_addr);
-        // Freeze contract
-        admin_freeze_contract(&mut scenario, admin_addr);
-        // Admin attempts to update the token's moment
-        admin_update_name(&mut scenario, admin_addr, b"New name");
-        // clean up
-        scenario.end();
-    }
-
-    #[test]
-    #[expected_failure(abort_code = register::EFrozen)]
-    fun test_frozen_cannot_update_token_description() {
-        let admin_addr = @0xAAAA;
-        let mut scenario = test_scenario::begin(@0x00);
-        admin_publish_contract(&mut scenario, admin_addr);
-        admin_mint_token(&mut scenario, 1, admin_addr, admin_addr);
-        // Freeze contract
-        admin_freeze_contract(&mut scenario, admin_addr);
-        // Admin attempts to update the token's description
-        admin_update_description(&mut scenario, admin_addr, b"New description");
-        // clean up
-        scenario.end();
-    }
-
-    #[test]
-    #[expected_failure(abort_code = register::EFrozen)]
-    fun test_frozen_cannot_update_token_edition() {
-        let admin_addr = @0xAAAA;
-        let mut scenario = test_scenario::begin(@0x00);
-        admin_publish_contract(&mut scenario, admin_addr);
-        admin_mint_token(&mut scenario, 1, admin_addr, admin_addr);
-        // Freeze contract
-        admin_freeze_contract(&mut scenario, admin_addr);
-        // Admin attempts to update the token's edition number
-        admin_update_edition_number(&mut scenario, admin_addr, 55);
-        // clean up
-        scenario.end();
-    }
-
-    #[test]
-    #[expected_failure(abort_code = register::EFrozen)]
-    fun test_frozen_cannot_update_token_moment() {
-        let admin_addr = @0xAAAA;
-        let mut scenario = test_scenario::begin(@0x00);
-        admin_publish_contract(&mut scenario, admin_addr);
-        admin_mint_token(&mut scenario, 1, admin_addr, admin_addr);
-        // Freeze contract
-        admin_freeze_contract(&mut scenario, admin_addr);
-        // Admin attempts to update the token's moment
-        let new_moment = get_new_alt_moment();
-        admin_update_moment(&mut scenario, admin_addr, &new_moment);
-        // clean up
-        scenario.end();
-    }
 
     // === Unit tests on the core functionality
 
     #[test]
     fun test_mint_moment() {
         let mut ctx = tx_context::dummy();
-        let mut register = register::dummy_register(&mut ctx);
+        let mut minterCap = caps::dummy_minter_cap(&mut ctx);
+        let mut adminCap = caps::dummy_admin_cap(&mut ctx);
         // mint a new token
-        let mut token = mint_and_validate_token(1, &mut register,  &mut ctx);
+        let mut token = mint_and_validate_token(1, &minterCap,  &mut ctx);
 
         // Update our token data
         let updated_token_data = get_alt_token_data();
-        update_and_verify_name(&mut token, updated_token_data[0], &mut register, &mut ctx);
-        update_and_verify_description(&mut token, updated_token_data[1], &mut register, &mut ctx);
-        update_and_verify_preview_image(&mut token, updated_token_data[2], &mut register, &mut ctx);
-        update_and_verify_edition_number(&mut token, 2, &mut register, &mut ctx);
+        update_and_verify_name(&mut token, updated_token_data[0], &mut adminCap, &mut ctx);
+        update_and_verify_description(&mut token, updated_token_data[1], &mut adminCap, &mut ctx);
+        update_and_verify_preview_image(&mut token, updated_token_data[2], &mut adminCap, &mut ctx);
+        update_and_verify_edition_number(&mut token, 2, &mut adminCap, &mut ctx);
 
         // Update the moment data
         let new_moment = get_new_alt_moment();
-        update_and_verify_moment(&mut token, &new_moment, &mut register, &mut ctx);
+        update_and_verify_moment(&mut token, &new_moment, &mut adminCap, &mut ctx);
 
         // Burn the token
-        token.burn(&mut register, &mut ctx);
+        token.burn(&mut adminCap, &mut ctx);
 
         // Clean up our caps
-        register::delete_dummy_register(register);
+        caps::delete_dummy_admin_cap(adminCap);
+        caps::delete_dummy_minter_cap(minterCap);
     }
 
     #[test]
     #[expected_failure(abort_code = token::EInvalidRequest)]
     fun test_invalid_edition_number() {
         let mut ctx = tx_context::dummy();
-        let mut register = register::dummy_register(&mut ctx);
+        let mut minterCap = caps::dummy_minter_cap(&mut ctx);
         // Create a token with an invalid edition number which is expected to fail
         let invalid_edition_number = 0;
-        let token = mint_and_validate_token(invalid_edition_number, &mut register, &mut ctx);
+        let token = mint_and_validate_token(invalid_edition_number, &mut minterCap, &mut ctx);
         transfer::public_transfer(token, @0x0);
-        register::delete_dummy_register(register);
+        caps::delete_dummy_minter_cap(minterCap);
     }
 
     // Extended tests on Display behavior
@@ -547,7 +347,7 @@ module collectible::test_token {
 
     // === Token Actions ===
 
-    fun mint_and_validate_token(edition_number: u32, register: &mut register::Register, ctx: &mut TxContext): token::Token {
+    fun mint_and_validate_token(edition_number: u32, minterCap: &caps::MinterCap, ctx: &mut TxContext): token::Token {
         let name = b"My name";
         let description = b"My description";
         let preview_image = b"My preview_image";
@@ -570,22 +370,27 @@ module collectible::test_token {
             utf8(b"'"),
         ]);
         debug::print(&dbg_string);
+        let mut vu8_vec: vector<vector<u8>> = vector::empty();
+        vu8_vec.push_back(name);
+        vu8_vec.push_back(description);
+        vu8_vec.push_back(preview_image);
+        vu8_vec.push_back(uri);
+        vu8_vec.push_back(team);
+        vu8_vec.push_back(player);
+        vu8_vec.push_back(date);
+        vu8_vec.push_back(play);
+        vu8_vec.push_back(play_of_game);
+        vu8_vec.push_back(game_clock);
+        vu8_vec.push_back(audio_type);
+        vu8_vec.push_back(video);
+        let mut edition_data: vector<u32> = vector::empty();
+        edition_data.push_back(edition_number);
+        edition_data.push_back(total_editions);
+        
         let token = token::mint(
-            name,
-            description,
-            preview_image,
-            uri,
-            team,
-            player,
-            date,
-            play,
-            play_of_game,
-            game_clock,
-            audio_type,
-            video,
-            edition_number,
-            total_editions,
-            register,
+            vu8_vec,
+            edition_data,
+            minterCap,
             ctx,
         );
         // Verify the outcome
@@ -649,10 +454,10 @@ module collectible::test_token {
     public fun admin_mint_token(scenario: &mut test_scenario::Scenario, edition_number: u32, admin_addr: address, user: address) {
         scenario.next_tx(admin_addr);
         {
-            let mut register = scenario.take_shared<register::Register>();
-            let token = mint_and_validate_token(edition_number, &mut register, scenario.ctx());
+            let mut minter = scenario.take_from_sender<caps::MinterCap>();
+            let token = mint_and_validate_token(edition_number, &mut minter, scenario.ctx());
             transfer::public_transfer(token, user);
-            test_scenario::return_shared(register);
+            scenario.return_to_sender(minter);
         };
         // Expect one created object, and one emitted event for minting
         check_last_receipt(scenario, 1, 0, 0, 1);
@@ -661,7 +466,7 @@ module collectible::test_token {
     public fun admin_burn_token(scenario: &mut test_scenario::Scenario, admin_addr: address) {
         scenario.next_tx(admin_addr);
         {
-            let mut register = scenario.take_shared<register::Register>();
+            let mut adminCap = scenario.take_from_sender<caps::AdminCap>();
             let token = scenario.take_from_sender<token::Token>();
             let dbg_string = build_string(&mut vector[
                 utf8(b"Burning token '"),
@@ -669,8 +474,8 @@ module collectible::test_token {
                 utf8(b"'"),
             ]);
             debug::print(&dbg_string);
-            token.burn(&mut register, scenario.ctx());
-            test_scenario::return_shared(register);
+            token.burn(&mut adminCap, scenario.ctx());
+            scenario.return_to_sender(adminCap);
         };
         // Expect one destroyed object, and one emitted event for burning
         check_last_receipt(scenario, 0, 1, 0, 1);
@@ -681,7 +486,7 @@ module collectible::test_token {
     public fun update_and_verify_name(
             token: &mut token::Token,
             new_name: vector<u8>,
-            register: &mut register::Register,
+            adminCap: &mut caps::AdminCap,
             ctx: &mut TxContext,
     ) {
         let exp_name = utf8(new_name);
@@ -694,14 +499,14 @@ module collectible::test_token {
             utf8(b"'"),
         ]);
         debug::print(&dbg_string);
-        token.update_name(new_name, register, ctx);
+        token.update_name(new_name, adminCap, ctx);
         assert!(token.name() == exp_name);
     }
 
     public fun update_and_verify_description(
             token: &mut token::Token,
             new_description: vector<u8>,
-            register: &mut register::Register,
+            adminCap: &mut caps::AdminCap,
             ctx: &mut TxContext,
     ) {
         let exp_description = utf8(new_description);
@@ -714,13 +519,13 @@ module collectible::test_token {
             utf8(b"'"),
         ]);
         debug::print(&dbg_string);
-        token.update_description(new_description, register, ctx);
+        token.update_description(new_description, adminCap, ctx);
         assert!(token.description() == exp_description);
     }
     public fun update_and_verify_preview_image(
             token: &mut token::Token,
             new_preview_image: vector<u8>,
-            register: &mut register::Register,
+            adminCap: &mut caps::AdminCap,
             ctx: &mut TxContext,
     ) {
         let exp_preview_image = utf8(new_preview_image);
@@ -733,14 +538,14 @@ module collectible::test_token {
         ]);
         debug::print(&dbg_string);
         assert!(token.preview_image() != exp_preview_image);
-        token.update_preview_image(new_preview_image, register, ctx);
+        token.update_preview_image(new_preview_image, adminCap, ctx);
         assert!(token.preview_image() == exp_preview_image);
     }
 
     public fun update_and_verify_edition_number(
             token: &mut token::Token,
             new_edition_number: u32,
-            register: &mut register::Register,
+            adminCap: &mut caps::AdminCap,
             ctx: &mut TxContext,
     ) {
         assert!(token.edition_number() != new_edition_number);
@@ -752,18 +557,18 @@ module collectible::test_token {
             utf8(b"'"),
         ]);
         debug::print(&dbg_string);
-        token.update_edition_number(new_edition_number, register, ctx);
+        token.update_edition_number(new_edition_number, adminCap, ctx);
         assert!(token.edition_number() == new_edition_number);
     }
 
     public fun update_and_verify_moment(
             token: &mut token::Token,
             new_moment: &moment::Moment,
-            register: &mut register::Register,
+            adminCap: &mut caps::AdminCap,
             ctx: &mut TxContext,
     ) {
         // Update the token
-        let moment = token.get_mut_moment(register, ctx);
+        let moment = token.get_mut_moment(adminCap, ctx);
         assert!(moment != new_moment);
         let dbg_string = build_string(&mut vector[
             utf8(b"Updating moment e.g. '"),
@@ -784,10 +589,10 @@ module collectible::test_token {
         scenario.next_tx(owner_addr);
         {
             let mut token = scenario.take_from_sender<token::Token>();
-            let mut register = scenario.take_shared<register::Register>();
-            update_and_verify_name(&mut token, new_name, &mut register, scenario.ctx());
+            let mut adminCap = scenario.take_from_sender<caps::AdminCap>();
+            update_and_verify_name(&mut token, new_name, &mut adminCap, scenario.ctx());
             scenario.return_to_sender(token);
-            test_scenario::return_shared(register);
+            scenario.return_to_sender(adminCap);
         };
         check_last_receipt(scenario, 0, 0, 0, 0);
     }
@@ -796,10 +601,10 @@ module collectible::test_token {
         scenario.next_tx(owner_addr);
         {
             let mut token = scenario.take_from_sender<token::Token>();
-            let mut register = scenario.take_shared<register::Register>();
-            update_and_verify_description(&mut token, new_description, &mut register, scenario.ctx());
+            let mut adminCap = scenario.take_from_sender<caps::AdminCap>();
+            update_and_verify_description(&mut token, new_description, &mut adminCap, scenario.ctx());
             scenario.return_to_sender(token);
-            test_scenario::return_shared(register);
+            scenario.return_to_sender(adminCap);
         };
         check_last_receipt(scenario, 0, 0, 0, 0);
     }
@@ -808,10 +613,10 @@ module collectible::test_token {
         scenario.next_tx(owner_addr);
         {
             let mut token = scenario.take_from_sender<token::Token>();
-            let mut register = scenario.take_shared<register::Register>();
-            update_and_verify_preview_image(&mut token, new_image, &mut register, scenario.ctx());
+            let mut adminCap = scenario.take_from_sender<caps::AdminCap>();
+            update_and_verify_preview_image(&mut token, new_image, &mut adminCap, scenario.ctx());
             scenario.return_to_sender(token);
-            test_scenario::return_shared(register);
+            scenario.return_to_sender(adminCap);
         };
         check_last_receipt(scenario, 0, 0, 0, 0);
     }
@@ -820,10 +625,10 @@ module collectible::test_token {
         scenario.next_tx(owner_addr);
         {
             let mut token = scenario.take_from_sender<token::Token>();
-            let mut register = scenario.take_shared<register::Register>();
-            update_and_verify_edition_number(&mut token, new_edition_number, &mut register, scenario.ctx());
+            let mut adminCap = scenario.take_from_sender<caps::AdminCap>();
+            update_and_verify_edition_number(&mut token, new_edition_number, &mut adminCap, scenario.ctx());
             scenario.return_to_sender(token);
-            test_scenario::return_shared(register);
+            scenario.return_to_sender(adminCap);
         };
         check_last_receipt(scenario, 0, 0, 0, 0);
     }
@@ -836,7 +641,7 @@ module collectible::test_token {
     ) {
         scenario.next_tx(admin_addr);
         {
-            let mut register = scenario.take_shared<register::Register>();
+            let mut adminCap = scenario.take_from_sender<caps::AdminCap>();
             let mut token = scenario.take_from_sender<token::Token>();
             // Update the token
             assert!(token.name() != utf8(new_name));
@@ -851,17 +656,17 @@ module collectible::test_token {
                 utf8(b"', etc"),
             ]);
             debug::print(&dbg_string);
-            token.update_name(new_name, &mut register, scenario.ctx());
-            token.update_description(new_description, &mut register, scenario.ctx());
-            token.update_preview_image(new_preview_image, &mut register, scenario.ctx());
-            token.update_edition_number(new_edition_number, &mut register, scenario.ctx());
+            token.update_name(new_name, &mut adminCap, scenario.ctx());
+            token.update_description(new_description, &mut adminCap, scenario.ctx());
+            token.update_preview_image(new_preview_image, &mut adminCap, scenario.ctx());
+            token.update_edition_number(new_edition_number, &mut adminCap, scenario.ctx());
             assert!(token.name() == utf8(new_name));
             assert!(token.description() == utf8(new_description));
             assert!(token.preview_image() == utf8(new_preview_image));
             assert!(token.edition_number() == new_edition_number);
             // Clean up
             scenario.return_to_sender(token);
-            test_scenario::return_shared(register);
+            scenario.return_to_sender(adminCap);
         };
         check_last_receipt(scenario, 0, 0, 0, 0);
     }
@@ -869,12 +674,12 @@ module collectible::test_token {
     public fun admin_update_moment(scenario: &mut test_scenario::Scenario, admin_addr: address, new_moment: &moment::Moment) {
         scenario.next_tx(admin_addr);
         {
-            let mut register = scenario.take_shared<register::Register>();
+            let mut adminCap = scenario.take_from_sender<caps::AdminCap>();
             let mut token = scenario.take_from_sender<token::Token>();
-            update_and_verify_moment(&mut token, new_moment, &mut register, scenario.ctx());
+            update_and_verify_moment(&mut token, new_moment, &mut adminCap, scenario.ctx());
             // Clean up
             scenario.return_to_sender(token);
-            test_scenario::return_shared(register);
+            scenario.return_to_sender(adminCap);
         };
         check_last_receipt(scenario, 0, 0, 0, 0);
     }

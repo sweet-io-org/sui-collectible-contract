@@ -7,8 +7,10 @@ module collectible::token {
     use sui::display::{Display};
     use sui::event;
     use sui::url::{Url};
-    use collectible::register::{Register};
     use collectible::moment;
+    use collectible::uniqueidset;
+    use collectible::caps::{MinterCap, AdminCap};
+
 
     // Publisher template constants see:
     // https://docs.sui.io/guides/developer/nft/asset-tokenization#webassembly-wasm-and-template-package
@@ -58,11 +60,14 @@ module collectible::token {
             &publisher, fields, values, ctx
         );
         let (txf_obj, txf_cap) = 0x2::transfer_policy::new<Token>(&publisher,ctx);
+        // create set to track unique IDs for this collection
+        let unique_id_set = uniqueidset::new_set(ctx);
         // Transfer ownership
         transfer::public_share_object(txf_obj);
         transfer::public_transfer(txf_cap, tx_context::sender(ctx));
         transfer::public_transfer(publisher, tx_context::sender(ctx));
         transfer::public_transfer(display, tx_context::sender(ctx));
+        transfer::public_transfer(unique_id_set, tx_context::sender(ctx));
     }
 
     #[test_only]
@@ -74,43 +79,43 @@ module collectible::token {
 
     // Mint a new Token
     public fun mint(
-        name: vector<u8>,
-        description: vector<u8>,
-        preview_image: vector<u8>,
-        uri: vector<u8>,
-        team: vector<u8>,
-        player: vector<u8>,
-        date: vector<u8>,
-        play: vector<u8>,
-        play_of_game: vector<u8>,
-        game_clock: vector<u8>,
-        audio_type: vector<u8>,
-        video: vector<u8>,
-        edition_number: u32,
-        total_editions: u32,
-        register: &mut Register,
+        vu8_args: vector<vector<u8>>,
+        // 0: name: vector<u8>  
+        // 1: description: vector<u8>,
+        // 2: preview_image: vector<u8>,
+        // 3: uri: vector<u8>,
+        // 4: team: vector<u8>,
+        // 5: player: vector<u8>,
+        // 6: date: vector<u8>,
+        // 7: play: vector<u8>,
+        // 8: play_of_game: vector<u8>,
+        // 9: game_clock: vector<u8>,
+        // 10: audio_type: vector<u8>,
+        // 11: video: vector<u8>,
+        edition_data: vector<u32>,
+        // 0: edition_number: u32,
+        // 1: total_editions: u32,
+        _: &MinterCap,        
         ctx: &mut TxContext,
     ): Token {
-        assert!(edition_number > 0, EInvalidRequest);
-        // Register action will also check minter and frozen state
-        register.register_token_uri(uri, ctx);
+        assert!(edition_data[0] > 0, EInvalidRequest);
         let moment = moment::new_moment(
-            team,
-            player,
-            date,
-            play,
-            play_of_game,
-            game_clock,
-            audio_type,
-            video,
-            total_editions,
+            vu8_args[4], // team,
+            vu8_args[5], // player,
+            vu8_args[6], // date,
+            vu8_args[7], // play,
+            vu8_args[8], // play_of_game,
+            vu8_args[9], // game_clock,
+            vu8_args[10], // audio_type,
+            vu8_args[11], // video,
+            edition_data[1], // total_editions
         );
         mint_impl(
-            name,
-            description,
-            preview_image,
-            uri,
-            edition_number,
+            vu8_args[0], // name
+            vu8_args[1], // description
+            vu8_args[2], // preview_image
+            vu8_args[3], // uri,
+            edition_data[0], // edition_number,
             moment,
             ctx,
         )
@@ -119,10 +124,9 @@ module collectible::token {
     // Permanently delete token
     public fun burn(
             token: Token,
-            register: &mut Register,
+            _: &AdminCap,
             ctx: &mut TxContext,
     ) {
-        register.check_minter(ctx);
         burn_impl(token, ctx);
     }
 
@@ -164,11 +168,9 @@ module collectible::token {
     public fun update_name(
         self: &mut Token,
         new_name: vector<u8>,
-        register: &mut Register,
-        ctx: &mut TxContext,
+         _: &AdminCap,
+        _ctx: &mut TxContext,
     ) {
-        register.check_minter(ctx);
-        register.check_frozen(ctx);
         self.name = utf8(new_name);
     }
 
@@ -176,11 +178,9 @@ module collectible::token {
     public fun update_description(
         self: &mut Token,
         new_description: vector<u8>,
-        register: &mut Register,
-        ctx: &mut TxContext,
+        _: &AdminCap,
+        _ctx: &mut TxContext,
     ) {
-        register.check_minter(ctx);
-        register.check_frozen(ctx);
         self.description = utf8(new_description);
     }
 
@@ -188,11 +188,9 @@ module collectible::token {
     public fun update_preview_image(
         self: &mut Token,
         new_preview_image: vector<u8>,
-        register: &mut Register,
-        ctx: &mut TxContext,
+        _: &AdminCap,
+        _ctx: &mut TxContext,
     ) {
-        register.check_minter(ctx);
-        register.check_frozen(ctx);
         self.preview_image = sui::url::new_unsafe_from_bytes(new_preview_image);
     }
 
@@ -200,20 +198,18 @@ module collectible::token {
     public fun update_edition_number(
         self: &mut Token,
         new_edition_number: u32,
-        register: &mut Register,
-        ctx: &mut TxContext,
+        _: &AdminCap,
+        _ctx: &mut TxContext,
     ) {
-        register.check_minter(ctx);
-        register.check_frozen(ctx);
         self.edition_number = new_edition_number;
     }
 
     // Get a mutable copy of the moment
-    public fun get_mut_moment(self: &mut Token,
-        register: &mut Register, ctx: &mut TxContext,): &mut moment::Moment
+    public fun get_mut_moment(
+        self: &mut Token,
+        _: &AdminCap,
+        _ctx: &mut TxContext,): &mut moment::Moment
     {
-        register.check_minter(ctx);
-        register.check_frozen(ctx);
         &mut self.moment
     }
 
