@@ -77,7 +77,7 @@ coverage can be accessed as follows:
 ```sh
 collectible % ~/.cargo/bin/sui move test --coverage
 collectible % ~/.cargo/bin/sui move coverage summary
-
+```
 
 
 Copyright (C) 2024 SocialSweet Inc.  All rights reserved.
