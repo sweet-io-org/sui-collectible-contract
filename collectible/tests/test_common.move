@@ -15,6 +15,7 @@ module collectible::test_common {
     use collectible::caps;
     use collectible::moment;
     use collectible::token;
+    use collectible::pack;
     use collectible::uniqueidset;
 
     const ZERO: u8 = 48;
@@ -44,6 +45,8 @@ module collectible::test_common {
 
     public fun get_moment_data(): vector<vector<u8>> {
         vector[
+            b"My Rarity",
+            b"My Set",
             b"My Team",
             b"My Player",
             b"My Date",
@@ -57,6 +60,8 @@ module collectible::test_common {
 
     public fun get_alt_moment_data(): vector<vector<u8>> {
         vector[
+            b"Alt Rarity",
+            b"Alt Set",
             b"Alt Team",
             b"Alt Player",
             b"Alt Date",
@@ -71,14 +76,16 @@ module collectible::test_common {
     public fun get_new_moment(): moment::Moment {
         let moment_data = get_moment_data();
         moment::new_moment(
-            moment_data[0], // Team
-            moment_data[1], // Player
-            moment_data[2], // Date
-            moment_data[3], // Play
-            moment_data[4], // Type of Play
-            moment_data[5], // Game Clock
-            moment_data[6], // Audio Type
-            moment_data[7], // Video / primary media
+            moment_data[0],
+            moment_data[1],
+            moment_data[2],
+            moment_data[3],
+            moment_data[4],
+            moment_data[5],
+            moment_data[6],
+            moment_data[7],
+            moment_data[8],
+            moment_data[9],
             64,
         )
     }
@@ -86,14 +93,16 @@ module collectible::test_common {
     public fun get_new_alt_moment(): moment::Moment {
         let moment_data = get_alt_moment_data();
         moment::new_moment(
-            moment_data[0], // Team
-            moment_data[1], // Player
-            moment_data[2], // Date
-            moment_data[3], // Play
-            moment_data[4], // Type of Play
-            moment_data[5], // Game Clock
-            moment_data[6], // Audio Type
-            moment_data[7], // Video / primary media
+            moment_data[0],
+            moment_data[1],
+            moment_data[2],
+            moment_data[3],
+            moment_data[4],
+            moment_data[5],
+            moment_data[6],
+            moment_data[7],
+            moment_data[8],
+            moment_data[9],            
             100,
         )
     }
@@ -122,9 +131,12 @@ module collectible::test_common {
             // Perform all of the private init functions
             caps::test_init(scenario.ctx());
             token::test_init(scenario.ctx());
+            pack::test_init(scenario.ctx());
+            let unique_id_set = uniqueidset::new_set(scenario.ctx());
+            transfer::public_transfer(unique_id_set, admin_addr);
         };
-        // Expect 8 created objects, and 1 emit for contract deployment
-        check_last_receipt(scenario, 8, 0, 0, 2);
+        // Expect 12 created objects, and 1 emit for contract deployment
+        check_last_receipt(scenario, 18, 0, 0, 4);
         scenario.next_tx(admin_addr);
         {
             let mut unique_id_set = scenario.take_from_sender<uniqueidset::UniqueIdSet>();
@@ -133,7 +145,7 @@ module collectible::test_common {
         };
         scenario.next_tx(admin_addr);
         {
-            let mut unique_id_set = scenario.take_from_sender<uniqueidset::UniqueIdSet>();
+            let unique_id_set = scenario.take_from_sender<uniqueidset::UniqueIdSet>();
             assert!(unique_id_set.contains(1000));
             scenario.return_to_sender(unique_id_set);
         };
@@ -146,8 +158,10 @@ module collectible::test_common {
             let admin = scenario.take_from_sender<caps::AdminCap>();
             let publisher = scenario.take_from_sender<sui::package::Publisher>();
             let upgrade_cap = scenario.take_from_sender<sui::package::UpgradeCap>();
-            let txf_policy_cap = scenario.take_from_sender<transfer_policy::TransferPolicyCap<token::Token>>();
-            let display = scenario.take_from_sender<display::Display<token::Token>>();
+            let token_txf_policy_cap = scenario.take_from_sender<transfer_policy::TransferPolicyCap<token::Token>>();
+            let token_display = scenario.take_from_sender<display::Display<token::Token>>();
+            let pack_display = scenario.take_from_sender<display::Display<pack::Pack>>();
+            let pack_txf_policy_cap = scenario.take_from_sender<transfer_policy::TransferPolicyCap<pack::Pack>>();
             let dbg_string = build_string(&mut vector[
                 utf8(b"Transferring caps to '"),
                 new_admin_addr.to_string(),
@@ -157,8 +171,10 @@ module collectible::test_common {
             transfer::public_transfer(admin, new_admin_addr);
             transfer::public_transfer(upgrade_cap, new_admin_addr);
             transfer::public_transfer(publisher, new_admin_addr);
-            transfer::public_transfer(display, new_admin_addr);
-            transfer::public_transfer(txf_policy_cap, new_admin_addr);
+            transfer::public_transfer(token_display, new_admin_addr);
+            transfer::public_transfer(token_txf_policy_cap, new_admin_addr);
+            transfer::public_transfer(pack_display, new_admin_addr);
+            transfer::public_transfer(pack_txf_policy_cap, new_admin_addr);
         };
         check_last_receipt(scenario, 0, 0, 0, 0);
     }
@@ -172,7 +188,26 @@ module collectible::test_common {
         };
         check_last_receipt(scenario, 0, 0, 0, 0);
     }
-        
+
+    public fun transfer_pack_minter_cap(scenario: &mut test_scenario::Scenario,
+        from_addr: address, to_addr: address) {
+        scenario.next_tx(from_addr);
+        {
+            let pack_minter = scenario.take_from_sender<caps::PackMinterCap>();
+            transfer::public_transfer(pack_minter, to_addr);
+        };
+        check_last_receipt(scenario, 0, 0, 0, 0);
+    }
+
+    public fun transfer_packer_cap(scenario: &mut test_scenario::Scenario,
+        from_addr: address, to_addr: address) {
+        scenario.next_tx(from_addr);
+        {
+            let packer = scenario.take_from_sender<caps::PackerCap>();
+            transfer::public_transfer(packer, to_addr);
+        };
+        check_last_receipt(scenario, 0, 0, 0, 0);
+    }
 
     public fun admin_has_admin_cap_access(scenario: &mut test_scenario::Scenario, admin_addr: address) {
         scenario.next_tx(admin_addr);
@@ -226,19 +261,6 @@ module collectible::test_common {
         result
     }
 
-    public fun itos(mut value: u256): String {
-        if (value == 0) {
-            return utf8(vector[ZERO])
-        };
-        let mut result: vector<u8> = vector[];
-        while (value > 0) {
-            result.push_back((value % 10) as u8 + ZERO);
-            value = value / 10;
-        };
-        result.reverse();
-        utf8(result)
-    }
-
     public fun coin_to_string<T>(amount: &coin::Coin<T>): String {
         if (amount.value() == 0) {
             return utf8(vector[ZERO])
@@ -282,7 +304,17 @@ module collectible::test_common {
     {
         // Get last transaction receipt and set the invalidate the address
         let last_receipt = scenario.next_tx(@0x0);
-        debug::print(&last_receipt.deleted().length());
+        let dbg_string = build_string(&mut vector[
+                utf8(b"deleted="),
+                last_receipt.deleted().length().to_string(),
+                utf8(b" created="),
+                last_receipt.created().length().to_string(),
+                utf8(b" events="),
+                last_receipt.num_user_events().to_string(),
+                utf8(b" frozen="),
+                last_receipt.frozen().length().to_string(),
+            ]);
+        debug::print(&dbg_string);
         assert!(last_receipt.deleted().length() == nr_deleted);
         assert!(last_receipt.created().length() == nr_created);
         assert!(last_receipt.frozen().length() == nr_frozen);

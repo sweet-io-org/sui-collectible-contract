@@ -5,10 +5,6 @@ module collectible::test_caps {
 
     use sui::test_scenario;
     use collectible::caps::{
-        delete_dummy_admin_cap,
-        dummy_admin_cap,
-        delete_dummy_minter_cap,
-        dummy_minter_cap,
         MinterCap,
         burn_minter,
     };
@@ -24,7 +20,6 @@ module collectible::test_caps {
     fun test_caps() {
         let admin_addr = @0xAAAA;
         let minter_addr = @0xBBBB;
-        let user1 = @0xCCCC;
         // Admin publishes the caps
         let mut scenario = test_scenario::begin(@0x0);
         admin_publish_contract(&mut scenario, admin_addr);
@@ -43,7 +38,7 @@ module collectible::test_caps {
         admin_publish_contract(&mut scenario, admin_addr);
         scenario.next_tx(admin_addr);
         {
-            let mut minterCap = scenario.take_from_sender<MinterCap>();
+            let minterCap = scenario.take_from_sender<MinterCap>();
             burn_minter(minterCap);
         };
         scenario.end();

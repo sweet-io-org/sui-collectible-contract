@@ -3,7 +3,7 @@
 module collectible::royalty_rule {
 
     use sui::coin;
-    use sui::sui;
+    use sui::sui::SUI;
     use sui::transfer_policy;
 
     /// The `amount_bp` passed is more than 100%.
@@ -27,9 +27,8 @@ module collectible::royalty_rule {
         policy: &mut transfer_policy::TransferPolicy<T>,
         cap: &transfer_policy::TransferPolicyCap<T>,
         amount_bp: u16,
-
     ) {
-        assert!(amount_bp <= 10_000, EIncorrectArgument);        
+        assert!(amount_bp <= 10_000, EIncorrectArgument);
         transfer_policy::add_rule(Rule {}, policy, cap, Config { amount_bp })
     }
 
@@ -46,7 +45,7 @@ module collectible::royalty_rule {
     public fun pay<T: key + store>(
         policy: &mut transfer_policy::TransferPolicy<T>,
         request: &mut transfer_policy::TransferRequest<T>,
-        payment: coin::Coin<sui::SUI>,
+        payment: coin::Coin<SUI>,
     ) {
         let paid = transfer_policy::paid(request);
         let amount = fee_amount(policy, paid);
@@ -54,5 +53,4 @@ module collectible::royalty_rule {
         transfer_policy::add_to_balance(Rule {}, policy, payment);
         transfer_policy::add_receipt(Rule {}, request)
     }
-
 }

@@ -7,6 +7,7 @@ module collectible::test_token {
     use std::string::{utf8};
     use sui::display;
     use sui::test_scenario;
+    use sui::test_scenario::EEmptyInventory;
     use collectible::moment;
     use collectible::token;
     use collectible::test_common::{
@@ -17,11 +18,9 @@ module collectible::test_token {
         admin_transfer_admin_caps,
         build_string,
         check_last_receipt,
-        get_alt_moment_data,
         get_alt_token_data,
         get_new_alt_moment,
         transfer_minter_cap,
-        itos,
         owner_transfer_token,
     };
     use collectible::caps;
@@ -37,12 +36,16 @@ module collectible::test_token {
         admin_publish_contract(&mut scenario, minter_addr);
         admin_transfer_admin_caps(&mut scenario, minter_addr, admin_addr);
         admin_update_display_template(&mut scenario, admin_addr,
-            b"My Project Url",
-            b"New Series", b"New Set", b"New Rarity");
+            b"https://myproj.com",
+            b"https://mylink.com",
+            b"New copyright notice",
+            b"New Series");
         admin_mint_token(&mut scenario, 1, minter_addr, user1);
         admin_update_display_template(&mut scenario, admin_addr,
-            b"My Project Url2",
-            b"New Series2", b"New Set2", b"New Rarity2");
+            b"https://myproj2.com",
+            b"https://mylink2.com",
+            b"New copyright notice2",
+            b"New Series2");
         owner_transfer_token<token::Token>(&mut scenario, user1, admin_addr);
         admin_update_token(&mut scenario, admin_addr,
             b"New name", b"New Description2",
@@ -61,15 +64,17 @@ module collectible::test_token {
         let mut scenario = test_scenario::begin(@0x0);
         admin_publish_contract(&mut scenario, admin_addr);
         admin_update_display_template(&mut scenario, admin_addr,
-            b"My Project Url",
-            b"New Series", b"New Set", b"New Rarity");
+            b"https://myproj.com",
+            b"https://mylink.com",
+            b"New copyright notice",
+            b"New Series");
         admin_mint_token(&mut scenario, 0, admin_addr, user1);
         scenario.end();
     }
 
 
     #[test]
-    #[expected_failure(abort_code = 3)]
+    #[expected_failure(abort_code = EEmptyInventory)]
     fun test_minter_cap_required_to_mint() {
         let admin_addr = @0xAAAA;
         let minter_addr = @0xBBBB;
@@ -116,8 +121,6 @@ module collectible::test_token {
         // Update the moment data
         let alt_moment = get_new_alt_moment();
         admin_update_moment(&mut scenario, minter_addr, &alt_moment);
-        // As admin, update the display properties
-        let alt_moment_data = get_alt_moment_data();
         // Clean up
         scenario.end();
     }
@@ -149,7 +152,7 @@ module collectible::test_token {
     // === Unauthorized token updates and burns ===
 
     #[test]
-    #[expected_failure(abort_code = 3)]
+    #[expected_failure(abort_code = EEmptyInventory)]
     fun test_user_cannot_update_token_name() {
         let admin_addr = @0xAAAA;
         let user1 = @0xCCCC;
@@ -162,7 +165,7 @@ module collectible::test_token {
     }
 
     #[test]
-    #[expected_failure(abort_code = 3)]
+    #[expected_failure(abort_code = EEmptyInventory)]
     fun test_user_cannot_update_token_description() {
         let admin_addr = @0xAAAA;
         let user1 = @0xCCCC;
@@ -175,7 +178,7 @@ module collectible::test_token {
     }
 
     #[test]
-    #[expected_failure(abort_code = 3)]
+    #[expected_failure(abort_code = EEmptyInventory)]
     fun test_user_cannot_update_token_preview_image() {
         let admin_addr = @0xAAAA;
         let user1 = @0xCCCC;
@@ -188,7 +191,7 @@ module collectible::test_token {
     }
 
     #[test]
-    #[expected_failure(abort_code = 3)]
+    #[expected_failure(abort_code = EEmptyInventory)]
     fun test_user_cannot_update_edition_number() {
         let admin_addr = @0xAAAA;
         let user1 = @0xCCCC;
@@ -201,7 +204,7 @@ module collectible::test_token {
     }
 
     #[test]
-    #[expected_failure(abort_code = 3)]
+    #[expected_failure(abort_code = EEmptyInventory)]
     fun test_user_cannot_update_moment() {
         let admin_addr = @0xAAAA;
         let user1 = @0xCCCC;
@@ -214,7 +217,7 @@ module collectible::test_token {
     }
 
     #[test]
-    #[expected_failure(abort_code = 3)]
+    #[expected_failure(abort_code = EEmptyInventory)]
     fun test_user_cannot_burn_token() {
         let admin_addr = @0xAAAA;
         let user1 = @0xCCCC;
@@ -233,24 +236,24 @@ module collectible::test_token {
     #[test]
     fun test_mint_moment() {
         let mut ctx = tx_context::dummy();
-        let mut minterCap = caps::dummy_minter_cap(&mut ctx);
-        let mut adminCap = caps::dummy_admin_cap(&mut ctx);
+        let minterCap = caps::dummy_minter_cap(&mut ctx);
+        let adminCap = caps::dummy_admin_cap(&mut ctx);
         // mint a new token
         let mut token = mint_and_validate_token(1, &minterCap,  &mut ctx);
 
         // Update our token data
         let updated_token_data = get_alt_token_data();
-        update_and_verify_name(&mut token, updated_token_data[0], &mut adminCap, &mut ctx);
-        update_and_verify_description(&mut token, updated_token_data[1], &mut adminCap, &mut ctx);
-        update_and_verify_preview_image(&mut token, updated_token_data[2], &mut adminCap, &mut ctx);
-        update_and_verify_edition_number(&mut token, 2, &mut adminCap, &mut ctx);
+        update_and_verify_name(&mut token, updated_token_data[0], &adminCap);
+        update_and_verify_description(&mut token, updated_token_data[1], &adminCap);
+        update_and_verify_preview_image(&mut token, updated_token_data[2], &adminCap);
+        update_and_verify_edition_number(&mut token, 2, &adminCap);
 
         // Update the moment data
         let new_moment = get_new_alt_moment();
-        update_and_verify_moment(&mut token, &new_moment, &mut adminCap, &mut ctx);
+        update_and_verify_moment(&mut token, &new_moment, &adminCap);
 
         // Burn the token
-        token.burn(&mut adminCap, &mut ctx);
+        token.burn(&adminCap, &mut ctx);
 
         // Clean up our caps
         caps::delete_dummy_admin_cap(adminCap);
@@ -261,10 +264,10 @@ module collectible::test_token {
     #[expected_failure(abort_code = token::EInvalidRequest)]
     fun test_invalid_edition_number() {
         let mut ctx = tx_context::dummy();
-        let mut minterCap = caps::dummy_minter_cap(&mut ctx);
+        let minterCap = caps::dummy_minter_cap(&mut ctx);
         // Create a token with an invalid edition number which is expected to fail
         let invalid_edition_number = 0;
-        let token = mint_and_validate_token(invalid_edition_number, &mut minterCap, &mut ctx);
+        let token = mint_and_validate_token(invalid_edition_number, &minterCap, &mut ctx);
         transfer::public_transfer(token, @0x0);
         caps::delete_dummy_minter_cap(minterCap);
     }
@@ -347,7 +350,7 @@ module collectible::test_token {
 
     // === Token Actions ===
 
-    fun mint_and_validate_token(edition_number: u32, minterCap: &caps::MinterCap, ctx: &mut TxContext): token::Token {
+    public fun mint_and_validate_token(edition_number: u16, minterCap: &caps::MinterCap, ctx: &mut TxContext): token::Token {
         let name = b"My name";
         let description = b"My description";
         let preview_image = b"My preview_image";
@@ -359,17 +362,13 @@ module collectible::test_token {
         let game_clock = b"My Game Clock";
         let audio_type = b"My Audio Type";
         let video = b"My video URI";
-        let total_editions = 50;
+        let rarity: vector<u8> = b"My Rarity";
+        let set: vector<u8> = b"My Set";
+        let total_editions: u16 = 50;
         // Generate a unique URI for each mint
         let mut uri = b"My URI #";
-        uri.append(*itos(edition_number as u256).bytes());
+        uri.append(edition_number.to_string().into_bytes());
         // Mint the token
-        let dbg_string = build_string(&mut vector[
-            utf8(b"Minting token '"),
-            itos(edition_number as u256),
-            utf8(b"'"),
-        ]);
-        debug::print(&dbg_string);
         let mut vu8_vec: vector<vector<u8>> = vector::empty();
         vu8_vec.push_back(name);
         vu8_vec.push_back(description);
@@ -383,7 +382,9 @@ module collectible::test_token {
         vu8_vec.push_back(game_clock);
         vu8_vec.push_back(audio_type);
         vu8_vec.push_back(video);
-        let mut edition_data: vector<u32> = vector::empty();
+        vu8_vec.push_back(rarity);
+        vu8_vec.push_back(set);
+        let mut edition_data: vector<u16> = vector::empty();
         edition_data.push_back(edition_number);
         edition_data.push_back(total_editions);
         
@@ -398,7 +399,9 @@ module collectible::test_token {
         assert!(token.name() == utf8(name));
         assert!(token.description() == utf8(description));
         assert!(token.preview_image() == utf8(preview_image));
-        assert!(token.uri() == utf8(uri));
+        let mut expected_token_uri = utf8(b"https://nft.mlsquest.com");
+        expected_token_uri.append(utf8(uri));
+        assert!(token.uri() == expected_token_uri);
         assert!(token.moment().team() == utf8(team));
         assert!(token.moment().player() == utf8(player));
         assert!(token.moment().date() == utf8(date));
@@ -407,34 +410,36 @@ module collectible::test_token {
         assert!(token.moment().game_clock() == utf8(game_clock));
         assert!(token.moment().audio_type() == utf8(audio_type));
         assert!(token.moment().video() == utf8(video));
+        assert!(token.moment().rarity() == utf8(rarity));
+        assert!(token.moment().set() == utf8(set));
         token
     }
 
     fun update_and_validate_display(display: &mut display::Display<token::Token>,
             new_project_url: vector<u8>,
-            new_series: vector<u8>, new_set: vector<u8>, new_rarity: vector<u8>,
-            ctx: &mut tx_context::TxContext,
+            new_link_url: vector<u8>,
+            new_copyright: vector<u8>,
+            new_series: vector<u8>, 
+            _ctx: &mut tx_context::TxContext,
         ) {
-        assert!(display.fields().try_get(&utf8(b"project_url")).get_with_default(utf8(b"")) != utf8(new_project_url));
+        let mut expected_proj_url = utf8(new_project_url);
+        expected_proj_url.append(utf8(b"{uri_path}"));
+        let mut expected_link_url = utf8(new_link_url);
+        expected_link_url.append(utf8(b"{uri_path}"));
+        assert!(display.fields().try_get(&utf8(b"project_url")).get_with_default(utf8(b"")) != expected_proj_url);
+        assert!(display.fields().try_get(&utf8(b"link")).get_with_default(utf8(b"")) != expected_link_url);
         assert!(display.fields().try_get(&utf8(b"series")).get_with_default(utf8(b"")) != utf8(new_series));
-        assert!(display.fields().try_get(&utf8(b"set")).get_with_default(utf8(b"")) != utf8(new_set));
-        assert!(display.fields().try_get(&utf8(b"rarity")).get_with_default(utf8(b"")) != utf8(new_rarity));
-        let dbg_string = build_string(&mut vector[
-            utf8(b"Setting display template e.g. set='"),
-            utf8(new_set),
-            utf8(b"', etc"),
-        ]);
-        debug::print(&dbg_string);
-        token::set_display_template(display, new_project_url, new_series, new_set, new_rarity, ctx);
-        assert!(display.fields().try_get(&utf8(b"project_url")).get_with_default(utf8(b"")) == utf8(new_project_url));
+        token::set_display_template(display, new_project_url, new_link_url, new_copyright, new_series);
+        assert!(display.fields().try_get(&utf8(b"project_url")).get_with_default(utf8(b"")) == expected_proj_url);
+        assert!(display.fields().try_get(&utf8(b"link")).get_with_default(utf8(b"")) == expected_link_url);
         assert!(display.fields().try_get(&utf8(b"series")).get_with_default(utf8(b"")) == utf8(new_series));
-        assert!(display.fields().try_get(&utf8(b"set")).get_with_default(utf8(b"")) == utf8(new_set));
-        assert!(display.fields().try_get(&utf8(b"rarity")).get_with_default(utf8(b"")) == utf8(new_rarity));
     }
 
     fun admin_update_display_template(scenario: &mut test_scenario::Scenario, admin_addr: address,
             new_project_url: vector<u8>,
-            new_series: vector<u8>, new_set: vector<u8>, new_rarity: vector<u8>) {
+            new_link_url: vector<u8>,
+            new_copyright: vector<u8>,
+            new_series: vector<u8>,) {
         scenario.next_tx(admin_addr);
         {
             let mut display = scenario.take_from_sender<display::Display<token::Token>>();
@@ -442,7 +447,9 @@ module collectible::test_token {
             update_and_validate_display(
                 &mut display,
                 new_project_url,
-                new_series, new_set, new_rarity,
+                new_link_url,
+                new_copyright,
+                new_series,
                 scenario.ctx());
             // Remove ourselves from the whitelist
             scenario.return_to_sender(display);
@@ -451,11 +458,11 @@ module collectible::test_token {
         check_last_receipt(scenario, 0, 0, 0, 1);
     }
 
-    public fun admin_mint_token(scenario: &mut test_scenario::Scenario, edition_number: u32, admin_addr: address, user: address) {
+    public fun admin_mint_token(scenario: &mut test_scenario::Scenario, edition_number: u16, admin_addr: address, user: address) {
         scenario.next_tx(admin_addr);
         {
-            let mut minter = scenario.take_from_sender<caps::MinterCap>();
-            let token = mint_and_validate_token(edition_number, &mut minter, scenario.ctx());
+            let minter = scenario.take_from_sender<caps::MinterCap>();
+            let token = mint_and_validate_token(edition_number, &minter, scenario.ctx());
             transfer::public_transfer(token, user);
             scenario.return_to_sender(minter);
         };
@@ -466,15 +473,15 @@ module collectible::test_token {
     public fun admin_burn_token(scenario: &mut test_scenario::Scenario, admin_addr: address) {
         scenario.next_tx(admin_addr);
         {
-            let mut adminCap = scenario.take_from_sender<caps::AdminCap>();
+            let adminCap = scenario.take_from_sender<caps::AdminCap>();
             let token = scenario.take_from_sender<token::Token>();
             let dbg_string = build_string(&mut vector[
                 utf8(b"Burning token '"),
-                itos(*token.edition_number() as u256),
+                token.edition_number().to_string(),
                 utf8(b"'"),
             ]);
             debug::print(&dbg_string);
-            token.burn(&mut adminCap, scenario.ctx());
+            token.burn(&adminCap, scenario.ctx());
             scenario.return_to_sender(adminCap);
         };
         // Expect one destroyed object, and one emitted event for burning
@@ -486,47 +493,44 @@ module collectible::test_token {
     public fun update_and_verify_name(
             token: &mut token::Token,
             new_name: vector<u8>,
-            adminCap: &mut caps::AdminCap,
-            ctx: &mut TxContext,
+            adminCap: &caps::AdminCap,
     ) {
         let exp_name = utf8(new_name);
         assert!(token.name() != exp_name);
         let dbg_string = build_string(&mut vector[
             utf8(b"Update name from '"),
-            *token.name(),
+            token.name(),
             utf8(b"' to '"),
             exp_name,
             utf8(b"'"),
         ]);
         debug::print(&dbg_string);
-        token.update_name(new_name, adminCap, ctx);
+        token.update_name(new_name, adminCap);
         assert!(token.name() == exp_name);
     }
 
     public fun update_and_verify_description(
             token: &mut token::Token,
             new_description: vector<u8>,
-            adminCap: &mut caps::AdminCap,
-            ctx: &mut TxContext,
+            adminCap: &caps::AdminCap,
     ) {
         let exp_description = utf8(new_description);
         assert!(token.description() != exp_description);
         let dbg_string = build_string(&mut vector[
             utf8(b"Update description from '"),
-            *token.description(),
+            token.description(),
             utf8(b"' to '"),
             exp_description,
             utf8(b"'"),
         ]);
         debug::print(&dbg_string);
-        token.update_description(new_description, adminCap, ctx);
+        token.update_description(new_description, adminCap);
         assert!(token.description() == exp_description);
     }
     public fun update_and_verify_preview_image(
             token: &mut token::Token,
             new_preview_image: vector<u8>,
-            adminCap: &mut caps::AdminCap,
-            ctx: &mut TxContext,
+            adminCap: &caps::AdminCap,
     ) {
         let exp_preview_image = utf8(new_preview_image);
         let dbg_string = build_string(&mut vector[
@@ -538,37 +542,35 @@ module collectible::test_token {
         ]);
         debug::print(&dbg_string);
         assert!(token.preview_image() != exp_preview_image);
-        token.update_preview_image(new_preview_image, adminCap, ctx);
+        token.update_preview_image(new_preview_image, adminCap);
         assert!(token.preview_image() == exp_preview_image);
     }
 
     public fun update_and_verify_edition_number(
             token: &mut token::Token,
-            new_edition_number: u32,
-            adminCap: &mut caps::AdminCap,
-            ctx: &mut TxContext,
+            new_edition_number: u16,
+            adminCap: &caps::AdminCap,
     ) {
         assert!(token.edition_number() != new_edition_number);
         let dbg_string = build_string(&mut vector[
             utf8(b"Update edition number from '"),
-            itos(*token.edition_number() as u256),
+            token.edition_number().to_string(),
             utf8(b"' to '"),
-            itos(new_edition_number as u256),
+            new_edition_number.to_string(),
             utf8(b"'"),
         ]);
         debug::print(&dbg_string);
-        token.update_edition_number(new_edition_number, adminCap, ctx);
+        token.update_edition_number(new_edition_number, adminCap);
         assert!(token.edition_number() == new_edition_number);
     }
 
     public fun update_and_verify_moment(
             token: &mut token::Token,
             new_moment: &moment::Moment,
-            adminCap: &mut caps::AdminCap,
-            ctx: &mut TxContext,
+            adminCap: &caps::AdminCap,
     ) {
         // Update the token
-        let moment = token.get_mut_moment(adminCap, ctx);
+        let moment = token.get_mut_moment(adminCap);
         assert!(moment != new_moment);
         let dbg_string = build_string(&mut vector[
             utf8(b"Updating moment e.g. '"),
@@ -589,8 +591,8 @@ module collectible::test_token {
         scenario.next_tx(owner_addr);
         {
             let mut token = scenario.take_from_sender<token::Token>();
-            let mut adminCap = scenario.take_from_sender<caps::AdminCap>();
-            update_and_verify_name(&mut token, new_name, &mut adminCap, scenario.ctx());
+            let adminCap = scenario.take_from_sender<caps::AdminCap>();
+            update_and_verify_name(&mut token, new_name, &adminCap);
             scenario.return_to_sender(token);
             scenario.return_to_sender(adminCap);
         };
@@ -601,8 +603,8 @@ module collectible::test_token {
         scenario.next_tx(owner_addr);
         {
             let mut token = scenario.take_from_sender<token::Token>();
-            let mut adminCap = scenario.take_from_sender<caps::AdminCap>();
-            update_and_verify_description(&mut token, new_description, &mut adminCap, scenario.ctx());
+            let adminCap = scenario.take_from_sender<caps::AdminCap>();
+            update_and_verify_description(&mut token, new_description, &adminCap);
             scenario.return_to_sender(token);
             scenario.return_to_sender(adminCap);
         };
@@ -613,20 +615,20 @@ module collectible::test_token {
         scenario.next_tx(owner_addr);
         {
             let mut token = scenario.take_from_sender<token::Token>();
-            let mut adminCap = scenario.take_from_sender<caps::AdminCap>();
-            update_and_verify_preview_image(&mut token, new_image, &mut adminCap, scenario.ctx());
+            let adminCap = scenario.take_from_sender<caps::AdminCap>();
+            update_and_verify_preview_image(&mut token, new_image, &adminCap);
             scenario.return_to_sender(token);
             scenario.return_to_sender(adminCap);
         };
         check_last_receipt(scenario, 0, 0, 0, 0);
     }
 
-    public fun admin_update_edition_number(scenario: &mut test_scenario::Scenario, owner_addr: address, new_edition_number: u32) {
+    public fun admin_update_edition_number(scenario: &mut test_scenario::Scenario, owner_addr: address, new_edition_number: u16) {
         scenario.next_tx(owner_addr);
         {
             let mut token = scenario.take_from_sender<token::Token>();
-            let mut adminCap = scenario.take_from_sender<caps::AdminCap>();
-            update_and_verify_edition_number(&mut token, new_edition_number, &mut adminCap, scenario.ctx());
+            let adminCap = scenario.take_from_sender<caps::AdminCap>();
+            update_and_verify_edition_number(&mut token, new_edition_number, &adminCap);
             scenario.return_to_sender(token);
             scenario.return_to_sender(adminCap);
         };
@@ -637,11 +639,11 @@ module collectible::test_token {
             new_name: vector<u8>,
             new_description: vector<u8>,
             new_preview_image: vector<u8>,
-            new_edition_number: u32,
+            new_edition_number: u16,
     ) {
         scenario.next_tx(admin_addr);
         {
-            let mut adminCap = scenario.take_from_sender<caps::AdminCap>();
+            let adminCap = scenario.take_from_sender<caps::AdminCap>();
             let mut token = scenario.take_from_sender<token::Token>();
             // Update the token
             assert!(token.name() != utf8(new_name));
@@ -650,16 +652,16 @@ module collectible::test_token {
             assert!(token.edition_number() != new_edition_number);
             let dbg_string = build_string(&mut vector[
                 utf8(b"Updating token e.g. '"),
-                itos(*token.edition_number() as u256),
+                token.edition_number().to_string(),
                 utf8(b"' => '"),
-                itos(new_edition_number as u256),
+                new_edition_number.to_string(),
                 utf8(b"', etc"),
             ]);
             debug::print(&dbg_string);
-            token.update_name(new_name, &mut adminCap, scenario.ctx());
-            token.update_description(new_description, &mut adminCap, scenario.ctx());
-            token.update_preview_image(new_preview_image, &mut adminCap, scenario.ctx());
-            token.update_edition_number(new_edition_number, &mut adminCap, scenario.ctx());
+            token.update_name(new_name, &adminCap);
+            token.update_description(new_description, &adminCap);
+            token.update_preview_image(new_preview_image, &adminCap);
+            token.update_edition_number(new_edition_number, &adminCap);
             assert!(token.name() == utf8(new_name));
             assert!(token.description() == utf8(new_description));
             assert!(token.preview_image() == utf8(new_preview_image));
@@ -674,9 +676,9 @@ module collectible::test_token {
     public fun admin_update_moment(scenario: &mut test_scenario::Scenario, admin_addr: address, new_moment: &moment::Moment) {
         scenario.next_tx(admin_addr);
         {
-            let mut adminCap = scenario.take_from_sender<caps::AdminCap>();
+            let adminCap = scenario.take_from_sender<caps::AdminCap>();
             let mut token = scenario.take_from_sender<token::Token>();
-            update_and_verify_moment(&mut token, new_moment, &mut adminCap, scenario.ctx());
+            update_and_verify_moment(&mut token, new_moment, &adminCap);
             // Clean up
             scenario.return_to_sender(token);
             scenario.return_to_sender(adminCap);

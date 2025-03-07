@@ -5,6 +5,9 @@ module collectible::test_unique_ids {
     use sui::test_scenario;
     use sui::vec_set::{EKeyAlreadyExists, EKeyDoesNotExist};
     use collectible::uniqueidset;
+    use collectible::test_common::{
+        check_last_receipt,
+    };
 
     #[test]
     fun test_add_ids() {
@@ -25,7 +28,7 @@ module collectible::test_unique_ids {
         };
         scenario.next_tx(admin);
         {
-            let mut idset = scenario.take_from_sender<uniqueidset::UniqueIdSet>();
+            let idset = scenario.take_from_sender<uniqueidset::UniqueIdSet>();
             assert!(idset.contains(0xAAAA0001));
             assert!(idset.contains(0xAAAA0002));
             assert!(idset.contains(0xAAAA0003));
@@ -96,7 +99,90 @@ module collectible::test_unique_ids {
         };
         scenario.next_tx(admin);
         {
+            let idset = scenario.take_from_sender<uniqueidset::UniqueIdSet>();
+            assert!(!idset.contains(0xAAAA0003));
+            scenario.return_to_sender(idset);
+        };
+        scenario.end();
+    }
+
+    #[test]
+    #[expected_failure(abort_code = uniqueidset::ENotFound)]
+    fun test_remove_not_found() {
+        let admin = @0xAD;
+        let mut scenario = test_scenario::begin(admin);
+        scenario.next_tx(admin);
+        {
+            let mut idset = uniqueidset::new_set(scenario.ctx());
+            idset.insert(0xAAAA0001);
+            idset.insert(0xAAAA0002);
+            let mut idvec: vector<u32> = vector::empty();
+            idvec.push_back(0xAAAA0003);
+            idvec.push_back(0xAAAA0004);
+            idvec.push_back(0xAAAA0005);
+            idset.insert_all(idvec);
+            transfer::public_transfer(idset, admin);
+        };
+        scenario.next_tx(admin);
+        {
             let mut idset = scenario.take_from_sender<uniqueidset::UniqueIdSet>();
+            idset.remove(0x00AA0003);
+            scenario.return_to_sender(idset);
+        };
+        scenario.end();
+    }
+
+    #[test]
+    #[expected_failure(abort_code = EKeyDoesNotExist)]
+    fun test_remove_not_found_v2() {
+        let admin = @0xAD;
+        let mut scenario = test_scenario::begin(admin);
+        scenario.next_tx(admin);
+        {
+            let mut idset = uniqueidset::new_set(scenario.ctx());
+            idset.insert(0xAAAA0001);
+            idset.insert(0xAAAA0002);
+            let mut idvec: vector<u32> = vector::empty();
+            idvec.push_back(0xAAAA0003);
+            idvec.push_back(0xAAAA0004);
+            idvec.push_back(0xAAAA0005);
+            idset.insert_all(idvec);
+            transfer::public_transfer(idset, admin);
+        };
+        scenario.next_tx(admin);
+        {
+            let mut idset = scenario.take_from_sender<uniqueidset::UniqueIdSet>();
+            idset.remove(0xAAAA0023);
+            scenario.return_to_sender(idset);
+        };
+        scenario.end();
+    }
+
+    #[test]
+    fun test_purge() {
+        let admin = @0xAD;
+        let mut scenario = test_scenario::begin(admin);
+        scenario.next_tx(admin);
+        {
+            let mut idset = uniqueidset::new_set(scenario.ctx());
+            idset.insert(0xAAAA0001);
+            idset.insert(0xAAAA0002);
+            let mut idvec: vector<u32> = vector::empty();
+            idvec.push_back(0xAAAA0003);
+            idvec.push_back(0xAAAA0004);
+            idvec.push_back(0xAAAA0005);
+            idset.insert_all(idvec);
+            transfer::public_transfer(idset, admin);
+        };
+        scenario.next_tx(admin);
+        {
+            let mut idset = scenario.take_from_sender<uniqueidset::UniqueIdSet>();
+            idset.purge();
+            scenario.return_to_sender(idset);
+        };
+        scenario.next_tx(admin);
+        {
+            let idset = scenario.take_from_sender<uniqueidset::UniqueIdSet>();
             assert!(!idset.contains(0xAAAA0003));
             scenario.return_to_sender(idset);
         };
@@ -105,7 +191,7 @@ module collectible::test_unique_ids {
 
 
     #[test]
-    #[expected_failure(abort_code = 1)]    
+    #[expected_failure(abort_code = EKeyDoesNotExist)]
     fun test_remove_nonexistent_key() {
         let admin = @0xAD;
         let mut scenario = test_scenario::begin(admin);
@@ -129,6 +215,27 @@ module collectible::test_unique_ids {
         };
         scenario.end();        
     }
+
+    #[test]
+    fun test_burn() {
+        let admin = @0xAD;
+        let mut scenario = test_scenario::begin(admin);
+        scenario.next_tx(admin);
+        {
+            let mut idset = uniqueidset::new_set(scenario.ctx());
+            idset.insert(0xAAAA0000);
+            idset.insert(0xAAAA0001);
+            transfer::public_transfer(idset, admin);
+        };
+        scenario.next_tx(admin);
+        {
+            let idset = scenario.take_from_sender<uniqueidset::UniqueIdSet>();
+            uniqueidset::burn(idset);
+        };
+        check_last_receipt(&mut scenario, 0, 1, 0, 0);
+        scenario.end();
+    }
+
 
 }
         

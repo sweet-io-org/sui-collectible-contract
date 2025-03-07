@@ -1,26 +1,22 @@
 // Copyright (C) 2024 SocialSweet Inc.  All rights reserved.
 
 // Module: collectible
+
 module collectible::token {
 
     use std::string::{String, utf8};
-    use sui::display::{Display};
+
+    use sui::display::Display;
     use sui::event;
-    use sui::url::{Url};
+    use sui::url::Url;
+
+    use collectible::caps::{AdminCap, MinterCap};
     use collectible::moment;
-    use collectible::uniqueidset;
-    use collectible::caps::{MinterCap, AdminCap};
-
-
-    // Publisher template constants see:
-    // https://docs.sui.io/guides/developer/nft/asset-tokenization#webassembly-wasm-and-template-package
-    const DEFAULT_SERIES: vector<u8> = b"Default Series";
-    const DEFAULT_SET: vector<u8> = b"Default Set";
-    const DEFAULT_RARITY: vector<u8> = b"Default Rarity";
-    const DEFAULT_PUBLISHER_URL: vector<u8> = b"https://collectible.io";
 
     // Error constants offset 0x200
     const EInvalidRequest: u64   = 0x201;
+
+    const UriBasePath: vector<u8> = b"https://nft.mlsquest.com";
 
     /// One-Time-Witness for the module
     public struct TOKEN has drop {}
@@ -31,8 +27,8 @@ module collectible::token {
         name: String,
         description: String,
         preview_image: Url, // preview image for token
-        uri: Url, // uri for the token
-        edition_number: u32,
+        uri_path: String, // uri for the token
+        edition_number: u16,
         moment: moment::Moment,
     }
 
@@ -40,34 +36,32 @@ module collectible::token {
 
     public struct TokenMinted has copy, drop {
         object_id: ID,
-        token_uri: Url,
+        token_uri: String,
         creator: address,
     }
 
     public struct TokenBurned has copy, drop {
         object_id: ID,
-        token_uri: Url,
+        token_uri: String,
         burner: address,
     }
 
     /// Module initializer
+    #[allow(lint(share_owned))]
     fun init(otw: TOKEN, ctx: &mut TxContext) {
         // Add publisher support
         let publisher = sui::package::claim(otw, ctx);
         // Configure a default display template
-        let (fields, values) = get_display_template_fields(DEFAULT_PUBLISHER_URL, DEFAULT_SERIES, DEFAULT_SET, DEFAULT_RARITY);
+        let (fields, values) = get_display_template_fields(b"", b"", b"", b"");
         let display = sui::display::new_with_fields<Token>(
             &publisher, fields, values, ctx
         );
         let (txf_obj, txf_cap) = 0x2::transfer_policy::new<Token>(&publisher,ctx);
-        // create set to track unique IDs for this collection
-        let unique_id_set = uniqueidset::new_set(ctx);
         // Transfer ownership
         transfer::public_share_object(txf_obj);
         transfer::public_transfer(txf_cap, tx_context::sender(ctx));
         transfer::public_transfer(publisher, tx_context::sender(ctx));
         transfer::public_transfer(display, tx_context::sender(ctx));
-        transfer::public_transfer(unique_id_set, tx_context::sender(ctx));
     }
 
     #[test_only]
@@ -92,14 +86,18 @@ module collectible::token {
         // 9: game_clock: vector<u8>,
         // 10: audio_type: vector<u8>,
         // 11: video: vector<u8>,
-        edition_data: vector<u32>,
-        // 0: edition_number: u32,
-        // 1: total_editions: u32,
+        // 12: rarity: vector<u8>,
+        // 13: set: vector<u8>
+        edition_data: vector<u16>,
+        // 0: edition_number: u16,
+        // 1: total_editions: u16,
         _: &MinterCap,        
         ctx: &mut TxContext,
     ): Token {
         assert!(edition_data[0] > 0, EInvalidRequest);
         let moment = moment::new_moment(
+            vu8_args[12], // rarity
+            vu8_args[13], // set
             vu8_args[4], // team,
             vu8_args[5], // player,
             vu8_args[6], // date,
@@ -114,7 +112,7 @@ module collectible::token {
             vu8_args[0], // name
             vu8_args[1], // description
             vu8_args[2], // preview_image
-            vu8_args[3], // uri,
+            vu8_args[3], // uri path,
             edition_data[0], // edition_number,
             moment,
             ctx,
@@ -133,13 +131,13 @@ module collectible::token {
     // ===== Public view functions =====
 
     // Get the Token name
-    public fun name(token: &Token): &String {
-        &token.name
+    public fun name(token: &Token): String {
+        token.name
     }
 
     // Get the Token description
-    public fun description(token: &Token): &String {
-        &token.description
+    public fun description(token: &Token): String {
+        token.description
     }
 
     // Get a link to the preview image
@@ -149,12 +147,14 @@ module collectible::token {
 
     // Get a link to the token URI
     public fun uri(token: &Token): String {
-        token.uri.inner_url().to_string()
+        let mut full_uri = utf8(UriBasePath);
+        full_uri.append(token.uri_path);
+        full_uri
     }
 
     // Get the edition number
-    public fun edition_number(token: &Token): &u32 {
-        &token.edition_number
+    public fun edition_number(token: &Token): u16 {
+        token.edition_number
     }
 
     // Get a reference to the moment
@@ -169,7 +169,6 @@ module collectible::token {
         self: &mut Token,
         new_name: vector<u8>,
          _: &AdminCap,
-        _ctx: &mut TxContext,
     ) {
         self.name = utf8(new_name);
     }
@@ -179,7 +178,6 @@ module collectible::token {
         self: &mut Token,
         new_description: vector<u8>,
         _: &AdminCap,
-        _ctx: &mut TxContext,
     ) {
         self.description = utf8(new_description);
     }
@@ -189,7 +187,6 @@ module collectible::token {
         self: &mut Token,
         new_preview_image: vector<u8>,
         _: &AdminCap,
-        _ctx: &mut TxContext,
     ) {
         self.preview_image = sui::url::new_unsafe_from_bytes(new_preview_image);
     }
@@ -197,9 +194,8 @@ module collectible::token {
     // Update the edition number
     public fun update_edition_number(
         self: &mut Token,
-        new_edition_number: u32,
+        new_edition_number: u16,
         _: &AdminCap,
-        _ctx: &mut TxContext,
     ) {
         self.edition_number = new_edition_number;
     }
@@ -208,32 +204,39 @@ module collectible::token {
     public fun get_mut_moment(
         self: &mut Token,
         _: &AdminCap,
-        _ctx: &mut TxContext,): &mut moment::Moment
+    ): &mut moment::Moment
     {
         &mut self.moment
     }
 
     public fun set_display_template(
         display: &mut Display<Token>,
-        project_url: vector<u8>,
+        project_base_url: vector<u8>,
+        link_base_url: vector<u8>,
+        copyright_notice: vector<u8>,
         series: vector<u8>,
-        set: vector<u8>,
-        rarity: vector<u8>,
-        _ctx: &mut TxContext,
     ) {
-        let (fields, values) = get_display_template_fields(project_url, series, set, rarity);
+        let (fields, values) = get_display_template_fields(project_base_url, link_base_url, copyright_notice, series);
         set_display_template_impl(display, fields, values);
     }
 
     // === Private functions ===
 
     fun get_display_template_fields(
-        project_url: vector<u8>,
+        project_base_url: vector<u8>,
+        link_base_url: vector<u8>,
+        copyright_notice: vector<u8>,
         series: vector<u8>,
-        set: vector<u8>,
-        rarity: vector<u8>,
     ): (vector<String>, vector<String>) {
         // Get the display fields for the base structure
+        // The copyright notice is a shared field, and added to the
+        // end of the description, to save storage space.
+        let mut desc = utf8(b"{description}\n");
+        desc.append(utf8(copyright_notice));
+        let mut project_url = utf8(project_base_url);
+        project_url.append(utf8(b"{uri_path}"));
+        let mut link_url = utf8(link_base_url);
+        link_url.append(utf8(b"{uri_path}"));
         let fields = vector[
             // Basic set of fields
             utf8(b"name"),
@@ -256,15 +259,15 @@ module collectible::token {
         let values = vector[
             // Basic set of fields
             utf8(b"{name}"),
-            utf8(b"{description}"),
-            utf8(b"{uri}"),
+            desc,
+            link_url,
             utf8(b"{preview_image}"),
-            utf8(project_url),
+            project_url,
             // Extension fields
             utf8(b"{edition_number}"),
             utf8(series),
-            utf8(set),
-            utf8(rarity),
+            utf8(b"{moment.set}"),
+            utf8(b"{moment.rarity}"),
             utf8(b"{moment.team}"),
             utf8(b"{moment.player}"),
             utf8(b"{moment.date}"),
@@ -298,8 +301,8 @@ module collectible::token {
         name: vector<u8>,
         description: vector<u8>,
         preview_image: vector<u8>,
-        uri: vector<u8>,
-        edition_number: u32,
+        uri_path: vector<u8>,
+        edition_number: u16,
         moment: moment::Moment,
         ctx: &mut TxContext,
     ): Token {
@@ -308,13 +311,13 @@ module collectible::token {
             name: utf8(name),
             description: utf8(description),
             preview_image: sui::url::new_unsafe_from_bytes(preview_image),
-            uri: sui::url::new_unsafe_from_bytes(uri),
-            moment: moment,
-            edition_number: edition_number,
+            uri_path: utf8(uri_path),
+            moment,
+            edition_number,
         };
         event::emit(TokenMinted {
             object_id: object::id(&token),
-            token_uri: token.uri,
+            token_uri: get_full_uri(&token),
             creator: tx_context::sender(ctx),
         });
         token
@@ -323,13 +326,20 @@ module collectible::token {
     fun burn_impl(token: Token, ctx: &TxContext) {
         let burner = tx_context::sender(ctx);
         let id = object::id(&token);
-        let Token {id: token_uid, uri: token_uri, ..} = token;
+        let token_uri = get_full_uri(&token);
+        let Token { id: token_uid, .. } = token;
         event::emit(TokenBurned {
             object_id: id,
-            token_uri: token_uri,
-            burner: burner,
+            token_uri,
+            burner,
         });
         object::delete(token_uid);
+    }
+
+    fun get_full_uri(token: &Token): String {
+        let mut full_uri = utf8(UriBasePath);
+        full_uri.append(token.uri_path);
+        full_uri
     }
 
 }

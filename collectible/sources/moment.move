@@ -1,6 +1,7 @@
 // Copyright (C) 2024 SocialSweet Inc.  All rights reserved.
 
 // Module: collectible
+
 module collectible::moment {
 
     use std::string::{String, utf8};
@@ -8,29 +9,42 @@ module collectible::moment {
 
     // moment information for a token
     public struct Moment has store, copy, drop {
+        rarity: String,
+        set: String,
         team: String,
         player: String,
-        date: String,            // date of the game
-        play: String,            // type of play e.g. goal
-        play_of_game: String,    // play of the game e.g. 1 of 3
-        game_clock: String,      // game clock e.g. 72:23
-        audio_type: String,      // audio type
-        video: url::Url,         // primary media
-        total_editions: u32,     // total editions of this moment
+        date: String,
+        // date of the game
+        play: String,
+        // type of play e.g. goal
+        play_of_game: String,
+        // play of the game e.g. 1 of 3
+        game_clock: String,
+        // game clock e.g. 72:23
+        audio_type: String,
+        // audio type
+        video: url::Url,
+        // primary media
+        total_editions: u16,
+        // total editions of this moment
     }
 
     public fun new_moment(
-            team: vector<u8>,
-            player: vector<u8>,
-            date: vector<u8>,
-            play: vector<u8>,
-            play_of_game: vector<u8>,
-            game_clock: vector<u8>,
-            audio_type: vector<u8>,
-            video: vector<u8>,
-            total_editions: u32,
-        ): Moment {
+        rarity: vector<u8>,
+        set: vector<u8>,
+        team: vector<u8>,
+        player: vector<u8>,
+        date: vector<u8>,
+        play: vector<u8>,
+        play_of_game: vector<u8>,
+        game_clock: vector<u8>,
+        audio_type: vector<u8>,
+        video: vector<u8>,
+        total_editions: u16,
+    ): Moment {
         Moment {
+            rarity: utf8(rarity),
+            set: utf8(set),
             team: utf8(team),
             player: utf8(player),
             date: utf8(date),
@@ -39,11 +53,19 @@ module collectible::moment {
             game_clock: utf8(game_clock),
             audio_type: utf8(audio_type),
             video: url::new_unsafe_from_bytes(video),
-            total_editions: total_editions,
+            total_editions,
         }
     }
 
     // === Public getter functions ===
+
+    public fun rarity(self: &Moment): String {
+        self.rarity
+    }
+
+    public fun set(self: &Moment): String {
+        self.set
+    }
 
     public fun team(self: &Moment): String {
         self.team
@@ -74,10 +96,10 @@ module collectible::moment {
     }
 
     public fun video(self: &Moment): String {
-        utf8(*self.video.inner_url().as_bytes())
+        self.video.inner_url().to_string()
     }
 
-    public fun total_editions(self: &Moment): u32 {
+    public fun total_editions(self: &Moment): u16 {
         self.total_editions
     }
 
@@ -87,6 +109,8 @@ module collectible::moment {
         self: &mut Moment,
         new_moment: &Moment,
     ) {
+        self.rarity = new_moment.rarity;
+        self.set = new_moment.set;
         self.audio_type = new_moment.audio_type;
         self.date = new_moment.date;
         self.game_clock = new_moment.game_clock;
@@ -97,6 +121,21 @@ module collectible::moment {
         self.total_editions = new_moment.total_editions;
         self.video = new_moment.video;
     }
+
+    public fun update_rarity(
+        self: &mut Moment,
+        new_rarity: vector<u8>,
+    ) {
+        self.rarity = utf8(new_rarity);
+    }
+
+    public fun update_set(
+        self: &mut Moment,
+        new_set: vector<u8>,
+    ) {
+        self.set = utf8(new_set);
+    }
+
 
     public fun update_team(
         self: &mut Moment,
@@ -146,6 +185,7 @@ module collectible::moment {
     ) {
         self.audio_type = utf8(new_audio_type);
     }
+
     public fun update_video(
         self: &mut Moment,
         new_video: vector<u8>,
@@ -155,9 +195,8 @@ module collectible::moment {
 
     public fun update_total_editions(
         self: &mut Moment,
-        new_total_editions: u32,
+        new_total_editions: u16,
     ) {
         self.total_editions = new_total_editions;
     }
-
 }

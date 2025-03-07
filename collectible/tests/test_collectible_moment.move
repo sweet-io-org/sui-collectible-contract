@@ -9,7 +9,6 @@ module collectible::test_moment {
         Moment,
     };
     use collectible::test_common::{
-        itos,
         build_string,
         get_new_moment,
         get_new_alt_moment,
@@ -64,33 +63,41 @@ module collectible::test_moment {
         assert!(moment_data.audio_type() != alt_moment_data.audio_type());
         assert!(moment_data.video() != alt_moment_data.video());
         assert!(moment_data.total_editions() != alt_moment_data.total_editions());
+        assert!(moment_data.set() != alt_moment_data.set());
+        assert!(moment_data.rarity() != alt_moment_data.rarity());
         // Update team to match alt
-        moment_data.update_team(*alt_moment_data.team().bytes());
+        moment_data.update_team(*alt_moment_data.team().as_bytes());
         assert!(moment_data.team() == alt_moment_data.team());
         // Update player name to match alt
-        moment_data.update_player(*alt_moment_data.player().bytes());
+        moment_data.update_player(*alt_moment_data.player().as_bytes());
         assert!(moment_data.player() == alt_moment_data.player());
         // Update game date to match alt
-        moment_data.update_date(*alt_moment_data.date().bytes());
+        moment_data.update_date(*alt_moment_data.date().as_bytes());
         assert!(moment_data.date() == alt_moment_data.date());
         // Update key play type to match alt
-        moment_data.update_play(*alt_moment_data.play().bytes());
+        moment_data.update_play(*alt_moment_data.play().as_bytes());
         assert!(moment_data.play() == alt_moment_data.play());
         // Update play of game to match alt
-        moment_data.update_play_of_game(*alt_moment_data.play_of_game().bytes());
+        moment_data.update_play_of_game(*alt_moment_data.play_of_game().as_bytes());
         assert!(moment_data.play_of_game() == alt_moment_data.play_of_game());
         // Update game clock to match alt
-        moment_data.update_game_clock(*alt_moment_data.game_clock().bytes());
+        moment_data.update_game_clock(*alt_moment_data.game_clock().as_bytes());
         assert!(moment_data.game_clock() == alt_moment_data.game_clock());
         // Update audio type to match alt
-        moment_data.update_audio_type(*alt_moment_data.audio_type().bytes());
+        moment_data.update_audio_type(*alt_moment_data.audio_type().as_bytes());
         assert!(moment_data.audio_type() == alt_moment_data.audio_type());
         // Update video URI to match alt
-        moment_data.update_video(*alt_moment_data.video().bytes());
+        moment_data.update_video(*alt_moment_data.video().as_bytes());
         assert!(moment_data.video() == alt_moment_data.video());
         // Update total editions to match alt
         moment_data.update_total_editions(alt_moment_data.total_editions());
         assert!(moment_data.total_editions() == alt_moment_data.total_editions());
+        // Update rarity to match alt
+        moment_data.update_rarity(*alt_moment_data.rarity().as_bytes());
+        assert!(moment_data.rarity() == alt_moment_data.rarity());
+        // Update set to match alt
+        moment_data.update_set(*alt_moment_data.set().as_bytes());
+        assert!(moment_data.set() == alt_moment_data.set());
         // Print the resulting data
         debug_print_moment(utf8(b"Modified Moment Data:"), &moment_data);
         assert!(moment_data == alt_moment_data);
@@ -108,7 +115,7 @@ module collectible::test_moment {
         debug_strs.push_back(build_string(&mut vector[utf8(b" -- Game Clock: "), moment.game_clock()]));
         debug_strs.push_back(build_string(&mut vector[utf8(b" -- Audio Type: "), moment.audio_type()]));
         debug_strs.push_back(build_string(&mut vector[utf8(b" -- Video URI: "), moment.video()]));
-        debug_strs.push_back(build_string(&mut vector[utf8(b" -- Total Editions: "), itos(moment.total_editions() as u256)]));
+        debug_strs.push_back(build_string(&mut vector[utf8(b" -- Total Editions: "), moment.total_editions().to_string()]));
         // Print everything
         while (!debug_strs.is_empty()) {
             debug::print(&debug_strs.remove(0));
